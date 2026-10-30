@@ -120,8 +120,10 @@ The attendance verification protocol mandates a strict **Dual-Factor Gate**:
 - **Updated Brand Identity**: Replaced generic shield icons with a dedicated facial biometric `ScanFace` brand mark across mobile headers and web sidebar.
 
 ### 👆 Device Fingerprint & Biometric Authentication
-- Native hardware fingerprint and Touch ID authentication via `expo-local-authentication`.
-- Employees can sign into the mobile app with a single touch using their enrolled device biometric sensor, with encrypted credential fallback.
+- **1-Touch Biometric Sign-In**: Native hardware fingerprint and Touch ID authentication via `expo-local-authentication` with encrypted credential fallback.
+- **Dedicated Fingerprint Attendance Punch**: Employees can punch in rapidly with one touch using their phone's native fingerprint scanner (`/api/attendance/biometric-punch`).
+- **Strict Geofence Enforcement**: Fingerprint punches are gated by the 100m office perimeter GPS rule to prevent remote buddy punching.
+- **Admin Telemetry & Badges**: Attendance logs distinguish between `👆 Fingerprint` and `📸 128-D Match` verification methods across tables and reports.
 
 ### 🛡️ Real-Time Liveness Detection (Anti-Spoofing)
 - Dynamic blink challenge in camera viewfinder to defend against photograph and screen playback presentation attacks.

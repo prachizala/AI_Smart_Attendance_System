@@ -142,6 +142,7 @@ class AttendanceRecord(BaseModel):
     check_out: Optional[datetime] = None
     face_verified: bool
     location_verified: bool
+    verification_method: Optional[str] = "face"
     distance_meters: Optional[float] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -340,6 +341,14 @@ class CheckInPayload(BaseModel):
     offline_timestamp: Optional[str] = Field(None, description="ISO timestamp recorded locally when device was offline")
 
 
+class BiometricPunchPayload(BaseModel):
+    user_id: int
+    latitude: float = Field(..., ge=-90.0, le=90.0, json_schema_extra={"example": 23.002217})
+    longitude: float = Field(..., ge=-180.0, le=180.0, json_schema_extra={"example": 72.455763})
+    verification_method: str = Field("fingerprint", description="Biometric sensor type e.g. fingerprint")
+    offline_timestamp: Optional[str] = Field(None, description="ISO timestamp recorded locally when device was offline")
+
+
 class CheckOutPayload(BaseModel):
     user_id: int
     latitude: float = Field(..., ge=-90.0, le=90.0, json_schema_extra={"example": 23.002217})
@@ -438,6 +447,7 @@ def check_in(
         existing_record.check_in = now
         existing_record.face_verified = True
         existing_record.location_verified = True
+        existing_record.verification_method = "face"
         existing_record.latitude = payload.latitude
         existing_record.longitude = payload.longitude
         existing_record.distance_meters = geo_result["distance_meters"]
@@ -450,6 +460,7 @@ def check_in(
             check_in=now,
             face_verified=True,
             location_verified=True,
+            verification_method="face",
             latitude=payload.latitude,
             longitude=payload.longitude,
             distance_meters=geo_result["distance_meters"],
@@ -479,6 +490,105 @@ def check_in(
             f.write(base64.b64decode(proof_b64))
     except Exception:
         pass  # Non-blocking
+
+    rec = AttendanceRecord.model_validate(record_to_return)
+    rec.employee_id = user.employee_id
+    rec.employee_name = user.full_name
+    return rec
+
+
+@app.post("/api/attendance/biometric-punch", response_model=AttendanceRecord, tags=["Attendance"])
+@app.post("/attendance/biometric-punch", response_model=AttendanceRecord, tags=["Attendance"])
+def biometric_punch(
+    payload: BiometricPunchPayload,
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Native Device Biometric Attendance Punch (Fingerprint / Touch ID):
+    Gate 1: GPS Geofence Check (Haversine Distance <= 100m)
+    Gate 2: Device Hardware Sensor Validation Flag
+    Gate 3: Anti-duplicate daily check
+    """
+    if authorization:
+        auth_user = resolve_user(None, authorization, db)
+        if auth_user.role.lower() != "admin" and auth_user.id != payload.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: Cannot perform check-in on behalf of another employee."
+            )
+
+    user = db.query(models.User).filter(models.User.id == payload.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    if not user.is_active:
+        raise HTTPException(status_code=400, detail="Employee account is deactivated")
+
+    # Gate 1: WHERE Verification (GPS Geofence)
+    from services.geo_service import is_within_geofence
+    geo_result = is_within_geofence(payload.latitude, payload.longitude)
+    if not geo_result["is_within_geofence"]:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Check-in rejected: Device is outside office geofence. "
+                f"Distance: {geo_result['distance_meters']}m, Allowed radius: {geo_result['allowed_radius_meters']}m"
+            )
+        )
+
+    # Determine punch timestamp
+    if payload.offline_timestamp:
+        try:
+            now = datetime.fromisoformat(payload.offline_timestamp.replace("Z", "+00:00"))
+        except Exception:
+            now = datetime.utcnow()
+    else:
+        now = datetime.utcnow()
+    today = now.date()
+
+    # Gate 3: Anti-Duplicate Daily Check
+    existing_record = db.query(models.Attendance).filter(
+        models.Attendance.user_id == user.id,
+        models.Attendance.date == today
+    ).first()
+
+    if existing_record and existing_record.check_in is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Employee already checked in for today at {existing_record.check_in.strftime('%H:%M:%S')}"
+        )
+
+    # Check late arrival (after 09:30 AM local/server time)
+    attendance_status = "late" if now.time() > datetime.strptime("09:30", "%H:%M").time() else "present"
+
+    if existing_record:
+        existing_record.check_in = now
+        existing_record.face_verified = False
+        existing_record.location_verified = True
+        existing_record.verification_method = payload.verification_method or "fingerprint"
+        existing_record.latitude = payload.latitude
+        existing_record.longitude = payload.longitude
+        existing_record.distance_meters = geo_result["distance_meters"]
+        existing_record.status = attendance_status
+        record_to_return = existing_record
+    else:
+        new_attendance = models.Attendance(
+            user_id=user.id,
+            date=today,
+            check_in=now,
+            face_verified=False,
+            location_verified=True,
+            verification_method=payload.verification_method or "fingerprint",
+            latitude=payload.latitude,
+            longitude=payload.longitude,
+            distance_meters=geo_result["distance_meters"],
+            status=attendance_status
+        )
+        db.add(new_attendance)
+        record_to_return = new_attendance
+
+    db.commit()
+    db.refresh(record_to_return)
 
     rec = AttendanceRecord.model_validate(record_to_return)
     rec.employee_id = user.employee_id

@@ -462,9 +462,13 @@ export default function AdminDashboard() {
                         {checkOutFormatted}
                       </td>
 
-                      {/* Face Verified */}
+                      {/* Face / Biometric Verified */}
                       <td className="py-3.5 px-4 text-center">
-                        {isFaceVerified ? (
+                        {rec.verification_method === 'fingerprint' ? (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 font-bold text-[11px]">
+                            <span>👆 Fingerprint</span>
+                          </div>
+                        ) : isFaceVerified ? (
                           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 font-bold text-[11px]">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                             <span>128-D Verified</span>

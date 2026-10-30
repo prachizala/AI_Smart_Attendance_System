@@ -999,6 +999,152 @@ function CheckInDashboard({
     }
   };
 
+  const handleFingerprintPunch = async () => {
+    setIsProcessing(true);
+    setProcessingStatus(t('syncing'));
+    try {
+      // 1. Check Biometric Hardware Support
+      const bio = await checkBiometricSupport();
+      if (!bio.isAvailable) {
+        Alert.alert('Fingerprint Sensor', t('fingerprintNotAvailable'));
+        return;
+      }
+
+      // 2. Fetch high-precision GPS Location
+      let currentCoords = location;
+      if (!currentCoords) {
+        currentCoords = await fetchCurrentLocation(demoMode);
+      }
+      if (!currentCoords) {
+        throw new Error(t('locationErrorMsg'));
+      }
+
+      // Check client-side geofence first for fast feedback
+      const distance = calculateHaversine(
+        currentCoords.latitude,
+        currentCoords.longitude,
+        OFFICE_LAT,
+        OFFICE_LON
+      );
+      if (distance > GEOFENCE_RADIUS) {
+        setResultModal({
+          visible: true,
+          type: 'geofence_error',
+          title: t('locationErrorTitle'),
+          message: `${t('locationErrorMsg')} (${distance}m away)`,
+          details: null,
+        });
+        return;
+      }
+
+      // 3. Prompt Native Fingerprint Sensor Dialog
+      const bioAuth = await authenticateWithBiometrics(t('scanFingerprintToPunch'));
+      if (!bioAuth.success) {
+        if (bioAuth.error !== 'user_cancel') {
+          Alert.alert('Biometric Scan', t('fingerprintFailed'));
+        }
+        return;
+      }
+
+      // 4. Send Punch to Backend
+      const cleanUrl = serverUrl.replace(/\/+$/, '');
+      const endpoint = `${cleanUrl}/attendance/biometric-punch`;
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            latitude: currentCoords.latitude,
+            longitude: currentCoords.longitude,
+            verification_method: 'fingerprint',
+            user_id: user?.id,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          const detailMsg = data.detail || 'Fingerprint check-in failed.';
+          if (response.status === 409) {
+            setResultModal({
+              visible: true,
+              type: 'duplicate_error',
+              title: t('duplicateCheckInTitle'),
+              message: t('duplicateCheckInMsg'),
+              details: null,
+            });
+          } else {
+            setResultModal({
+              visible: true,
+              type: 'error',
+              title: 'Check-In Error',
+              message: detailMsg,
+              details: null,
+            });
+          }
+          setStatusBanner({ type: 'error', text: detailMsg });
+          return;
+        }
+
+        const checkInTime = data.check_in
+          ? new Date(data.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
+          : 'Confirmed';
+
+        setResultModal({
+          visible: true,
+          type: 'success',
+          title: t('checkInVerified'),
+          message: `${t('checkInVerifiedMsg')} (${t('fingerprintVerified')} ✓)`,
+          details: {
+            Time: checkInTime,
+            Distance: `${Math.round(distance)}m`,
+            Coordinates: `${currentCoords.latitude.toFixed(5)}, ${currentCoords.longitude.toFixed(5)}`,
+            Method: 'Fingerprint Sensor',
+          },
+        });
+
+        setStatusBanner({
+          type: 'success',
+          text: `👆 ${t('fingerprintVerified')}: ${checkInTime}`,
+        });
+
+        fetchTodayStatus();
+      } catch (netErr) {
+        // Offline punch fallback: queue securely on device
+        await queueOfflinePunch({
+          user_id: user?.id,
+          latitude: currentCoords.latitude,
+          longitude: currentCoords.longitude,
+          offline_timestamp: new Date().toISOString(),
+          verification_method: 'fingerprint',
+        });
+        const pending = await getOfflinePunches();
+        setOfflineCount(pending.length);
+
+        setResultModal({
+          visible: true,
+          type: 'offline_queued',
+          title: t('offlinePunchSavedTitle'),
+          message: t('offlinePunchSavedMsg'),
+          details: {
+            Time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }),
+            Distance: `${Math.round(distance)}m`,
+            Method: 'Offline Fingerprint Queue',
+          },
+        });
+      }
+    } catch (err) {
+      Alert.alert('Fingerprint Punch', err.message || 'Verification failed.');
+    } finally {
+      setIsProcessing(false);
+      setProcessingStatus('');
+    }
+  };
+
   return (
     <ScrollView
       style={styles.dashboardContainer}
@@ -1225,6 +1371,11 @@ function CheckInDashboard({
                   ● {(todayRecord.status || 'present').toUpperCase()}
                 </Text>
               </View>
+              {todayRecord.verification_method === 'fingerprint' && (
+                <View style={styles.methodPillFingerprint}>
+                  <Text style={styles.methodPillFingerprintText}>👆 {t('fingerprintVerified')}</Text>
+                </View>
+              )}
               <Text style={styles.todayDateText}>
                 {new Date().toLocaleDateString([], { weekday: 'short', day: '2-digit', month: 'short' })}
               </Text>
@@ -1296,6 +1447,16 @@ function CheckInDashboard({
       {!cameraActive && (
         <View style={styles.actionContainer}>
           <TouchableOpacity
+            style={[styles.bioPunchBtn, isProcessing && styles.btnDisabled]}
+            onPress={handleFingerprintPunch}
+            disabled={isProcessing}
+            activeOpacity={0.8}
+          >
+            <Fingerprint size={22} color="#10b981" />
+            <Text style={styles.bioPunchBtnText}>👆 {t('fingerprintPunch')}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[styles.primaryBtn, isProcessing && styles.btnDisabled]}
             onPress={handleStartCheckIn}
             disabled={isProcessing}
@@ -1305,7 +1466,8 @@ function CheckInDashboard({
               <ActivityIndicator color="#ffffff" />
             ) : (
               <View style={styles.btnContent}>
-                <Text style={styles.btnText}>{t('checkIn')}</Text>
+                <Camera size={20} color="#ffffff" style={{ marginRight: 8 }} />
+                <Text style={styles.btnText}>📸 {t('checkIn')}</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -2886,6 +3048,36 @@ const createStyles = (colors, isDark) =>
   },
   actionContainer: {
     gap: 12,
+  },
+  bioPunchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.14)' : 'rgba(16, 185, 129, 0.08)',
+    borderWidth: 1.5,
+    borderColor: '#10b981',
+    borderRadius: 16,
+    paddingVertical: 15,
+  },
+  bioPunchBtnText: {
+    color: '#10b981',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  methodPillFingerprint: {
+    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.16)' : 'rgba(16, 185, 129, 0.10)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  methodPillFingerprintText: {
+    color: '#10b981',
+    fontSize: 11,
+    fontWeight: '700',
   },
   primaryBtn: {
     backgroundColor: colors.primary,

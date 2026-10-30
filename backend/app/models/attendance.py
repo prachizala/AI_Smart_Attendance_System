@@ -19,6 +19,7 @@ class Attendance(Base):
     
     face_verified = Column(Boolean, default=False, nullable=False)
     location_verified = Column(Boolean, default=False, nullable=False)
+    verification_method = Column(String(30), default="face", nullable=False)
     
     latitude = Column(Float, nullable=True)
     check_in_lat = synonym("latitude")

@@ -56,6 +56,7 @@ class Attendance(Base):
     # Dual-factor validation flags
     face_verified = Column(Boolean, default=False, nullable=False)
     location_verified = Column(Boolean, default=False, nullable=False)
+    verification_method = Column(String(30), default="face", nullable=False)
     
     # Geolocation telemetry
     latitude = Column(Float, nullable=True)

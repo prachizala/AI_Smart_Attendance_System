@@ -134,7 +134,11 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
                       {log.check_out ? new Date(log.check_out).toLocaleTimeString() : '--:--'}
                     </td>
                     <td className="py-3 px-4">
-                      {log.face_verified ? (
+                      {log.verification_method === 'fingerprint' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-xs font-semibold border border-emerald-200 dark:border-emerald-800">
+                          👆 Fingerprint
+                        </span>
+                      ) : log.face_verified ? (
                         <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
                           <CheckCircle2 className="w-4 h-4 text-emerald-500" /> 128-D Match
                         </span>

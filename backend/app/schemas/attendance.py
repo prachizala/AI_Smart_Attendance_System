@@ -22,6 +22,7 @@ class AttendanceResponse(BaseModel):
     check_out_time: Optional[datetime] = None
     face_verified: bool
     location_verified: bool
+    verification_method: Optional[str] = "face"
     distance_from_office: Optional[float] = None
     status: str
     employee_name: Optional[str] = None

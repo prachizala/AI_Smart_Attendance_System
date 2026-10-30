@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -12,13 +12,19 @@ import {
   Platform,
   StatusBar,
   KeyboardAvoidingView,
+  Animated,
 } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Sun, Moon, MapPin, Clock, Calendar, Sparkles, CheckCircle2, XCircle, AlertCircle, Camera, X, RotateCcw, ScanFace } from 'lucide-react-native';
 import AttendanceHistoryScreen from './screens/AttendanceHistoryScreen';
 import LeaveScreen from './src/screens/LeaveScreen';
 import { saveSecureToken, getSecureToken, deleteSecureToken } from './src/utils/secureStorage';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
+import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
+import LanguageSelector from './src/components/LanguageSelector';
+import PasswordInput from './src/components/PasswordInput';
 
 // ==============================================================================
 // 1. SYSTEM CONFIGURATION & CONSTANTS
@@ -28,8 +34,8 @@ const OFFICE_LAT = 23.002217;
 const OFFICE_LON = 72.455763;
 const GEOFENCE_RADIUS = 100.0; // Allowed radius in meters
 
-// Default backend API URL configured for local Wi-Fi LAN IP (10.115.36.66)
-const LAN_API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.115.36.66:8000';
+// Default backend API URL configured for local Wi-Fi LAN IP (192.168.1.3)
+const LAN_API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.3:8000';
 const DEFAULT_SERVER_URL = Platform.select({
   android: LAN_API_URL, // Physical phone or emulator connected to PC Wi-Fi
   ios: LAN_API_URL,
@@ -53,16 +59,28 @@ const calculateHaversine = (lat1, lon1, lat2, lon2) => {
 // 2. COMPONENT: LOGIN SCREEN
 // ==============================================================================
 function LoginScreen({ onLoginSuccess, serverUrl, setServerUrl }) {
+  const { colors, isDark, toggleTheme } = useTheme();
+  const { t } = useLanguage();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const [identifier, setIdentifier] = useState('EMP001');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [modalError, setModalError] = useState(null); // { title: string, message: string }
   const [showConfig, setShowConfig] = useState(false);
 
   const handleLogin = async () => {
     setErrorMsg('');
+    setModalError(null);
+
     if (!identifier.trim() || !password.trim()) {
-      setErrorMsg('Please enter both Employee ID and password.');
+      const msg = t('missingFieldsMsg');
+      setErrorMsg(msg);
+      setModalError({
+        title: t('missingFieldsTitle'),
+        message: msg,
+      });
+      Alert.alert(t('missingFieldsTitle'), msg);
       return;
     }
 
@@ -70,31 +88,49 @@ function LoginScreen({ onLoginSuccess, serverUrl, setServerUrl }) {
     try {
       const cleanUrl = serverUrl.replace(/\/+$/, '');
       let response;
-      let activeUrl = cleanUrl;
+
+      const fetchWithTimeout = async (url, opts, timeoutMs = 8000) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          return await fetch(url, { ...opts, signal: controller.signal });
+        } catch (fetchErr) {
+          if (
+            fetchErr.name === 'AbortError' || 
+            fetchErr.message?.toLowerCase().includes('canceled') || 
+            fetchErr.message?.toLowerCase().includes('cancel') ||
+            fetchErr.message?.toLowerCase().includes('network request failed')
+          ) {
+            throw new Error(`Connection timeout: Phone cannot reach backend at ${cleanUrl}. Please ensure your PC Wi-Fi is set to Private network.`);
+          }
+          throw fetchErr;
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      };
 
       try {
-        response = await fetch(`${cleanUrl}/api/auth/login`, {
+        response = await fetchWithTimeout(`${cleanUrl}/api/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             identifier: identifier.trim(),
             password: password.trim(),
           }),
-        });
+        }, 8000);
       } catch (netErr) {
-        // If port 8000 is unreachable due to firewall/router restrictions, fallback to port 3000 proxy
+        // If port 8000 is unreachable, try port 3000 proxy fallback if applicable
         if (cleanUrl.includes(':8000')) {
           const fallbackUrl = cleanUrl.replace(':8000', ':3000');
           try {
-            response = await fetch(`${fallbackUrl}/api/auth/login`, {
+            response = await fetchWithTimeout(`${fallbackUrl}/api/auth/login`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 identifier: identifier.trim(),
                 password: password.trim(),
               }),
-            });
-            activeUrl = fallbackUrl;
+            }, 3000);
             if (setServerUrl) {
               setServerUrl(fallbackUrl);
             }
@@ -114,7 +150,45 @@ function LoginScreen({ onLoginSuccess, serverUrl, setServerUrl }) {
 
       onLoginSuccess(data.user, data.access_token);
     } catch (err) {
-      setErrorMsg(err.message || 'Connection error. Check server URL and network.');
+      let rawMsg = err.message || '';
+      let title = t('authFailedTitle');
+      let userFriendlyMsg = rawMsg;
+
+      const lower = rawMsg.toLowerCase();
+      if (lower.includes('password') || lower.includes('incorrect password')) {
+        title = t('wrongPasswordTitle');
+        userFriendlyMsg = t('wrongPasswordMsg');
+      } else if (
+        lower.includes('invalid employee id') ||
+        lower.includes('not found') ||
+        lower.includes('identifier')
+      ) {
+        title = t('invalidIdTitle');
+        userFriendlyMsg = t('invalidIdMsg');
+      } else if (lower.includes('deactivated')) {
+        title = t('deactivatedTitle');
+        userFriendlyMsg = t('deactivatedMsg');
+      } else if (
+        lower.includes('network') || 
+        lower.includes('failed to fetch') || 
+        lower.includes('connection') || 
+        lower.includes('timeout') ||
+        lower.includes('cancel')
+      ) {
+        title = t('serverErrorTitle');
+        userFriendlyMsg = t('serverErrorMsg');
+      } else {
+        userFriendlyMsg = rawMsg || t('serverErrorMsg');
+      }
+
+      setErrorMsg(userFriendlyMsg);
+      setModalError({
+        title,
+        message: userFriendlyMsg,
+      });
+
+      // Show native popup immediately
+      Alert.alert(title, userFriendlyMsg, [{ text: 'OK', onPress: () => {} }]);
     } finally {
       setIsLoading(false);
     }
@@ -125,17 +199,65 @@ function LoginScreen({ onLoginSuccess, serverUrl, setServerUrl }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.loginScroll}>
-        <View style={styles.loginCard}>
-          {/* Header */}
-          <View style={styles.loginHeader}>
-            <View style={styles.systemBadge}>
-              <Text style={styles.systemBadgeText}>DUAL-FACTOR BIOMETRIC SYSTEM</Text>
+      {/* Custom Popup Modal for High-Visibility Error Alerts */}
+      <Modal
+        visible={!!modalError}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setModalError(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.popupCard}>
+            <View style={styles.popupIconCircle}>
+              <XCircle size={36} color="#DC2626" />
             </View>
-            <Text style={styles.loginTitle}>AI Smart Attendance</Text>
-            <Text style={styles.loginSubtitle}>
-              Workforce verification via Facial Biometrics & GPS Geofencing
-            </Text>
+            <Text style={styles.popupTitle}>{modalError?.title}</Text>
+            <Text style={styles.popupMessage}>{modalError?.message}</Text>
+            <TouchableOpacity
+              style={styles.popupBtn}
+              onPress={() => setModalError(null)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.popupBtnText}>{t('tryAgain')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <ScrollView
+        contentContainerStyle={styles.loginScroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Top Header Bar: Clean, Outside Card */}
+        <View style={styles.loginTopBar}>
+          <View style={styles.loginTopBadge}>
+            <Sparkles size={14} color={colors.primary} />
+            <Text style={styles.loginTopBadgeText}>{t('bcaTag')}</Text>
+          </View>
+
+          <View style={styles.loginTopActions}>
+            <LanguageSelector compact={true} />
+            <TouchableOpacity
+              style={styles.themeToggleBtn}
+              onPress={toggleTheme}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              {isDark ? <Sun size={18} color="#FBBF24" /> : <Moon size={18} color={colors.primary} />}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Clean Center Card */}
+        <View style={styles.loginCard}>
+          <View style={styles.loginCardHeader}>
+            <View style={styles.loginLogoCircle}>
+              <ScanFace size={28} color={colors.primary} />
+            </View>
+            <Text style={styles.loginTitle}>{t('appTitle')}</Text>
+            <Text style={styles.loginSubtitle}>{t('appSubtitle')}</Text>
           </View>
 
           {/* Error Banner */}
@@ -147,42 +269,40 @@ function LoginScreen({ onLoginSuccess, serverUrl, setServerUrl }) {
 
           {/* Form */}
           <View style={styles.formGroup}>
-            <Text style={styles.inputLabel}>Employee ID or Email</Text>
+            <Text style={styles.inputLabel}>{t('employeeIdOrEmail')}</Text>
             <TextInput
               style={styles.textInput}
-              placeholder="e.g. EMP001"
-              placeholderTextColor="#64748b"
+              placeholder={t('employeeIdPlaceholder')}
+              placeholderTextColor={colors.textMuted}
               value={identifier}
               onChangeText={setIdentifier}
               autoCapitalize="none"
+              autoCorrect={false}
             />
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.inputLabel}>Password</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Enter password"
-              placeholderTextColor="#64748b"
+            <Text style={styles.inputLabel}>{t('password')}</Text>
+            <PasswordInput
+              placeholder={t('passwordPlaceholder')}
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
             />
           </View>
 
-          {/* Server Config Accordion (Essential for phone testing via Wi-Fi IP) */}
+          {/* Server Config Accordion */}
           <TouchableOpacity
             style={styles.configToggle}
             onPress={() => setShowConfig(!showConfig)}
           >
             <Text style={styles.configToggleText}>
-              {showConfig ? '▼ Hide Server Settings' : '⚙ Configure Server IP for Demo'}
+              {showConfig ? t('hideServerSettings') : t('serverSettings')}
             </Text>
           </TouchableOpacity>
 
           {showConfig && (
-            <View style={styles.formGroup}>
-              <Text style={styles.inputLabel}>FastAPI Server URL</Text>
+            <View style={styles.configBox}>
+              <Text style={styles.configLabel}>{t('fastApiServerUrl')}</Text>
               <TextInput
                 style={[styles.textInput, styles.monoInput]}
                 value={serverUrl}
@@ -191,9 +311,7 @@ function LoginScreen({ onLoginSuccess, serverUrl, setServerUrl }) {
                 autoCorrect={false}
               />
               <Text style={styles.configHint}>
-                * Direct FastAPI Backend: http://10.115.36.66:8000{'\n'}
-                * Vite Proxy Backend: http://10.115.36.66:3000{'\n'}
-                * Android Emulator: http://10.0.2.2:8000
+                * Wi-Fi LAN: http://192.168.1.3:8000
               </Text>
             </View>
           )}
@@ -203,19 +321,21 @@ function LoginScreen({ onLoginSuccess, serverUrl, setServerUrl }) {
             style={[styles.loginBtn, isLoading && styles.btnDisabled]}
             onPress={handleLogin}
             disabled={isLoading}
+            activeOpacity={0.8}
           >
             {isLoading ? (
-              <ActivityIndicator color="#ffffff" />
+              <ActivityIndicator color="#ffffff" size="small" />
             ) : (
-              <Text style={styles.loginBtnText}>Sign In to Workstation</Text>
+              <Text style={styles.loginBtnText}>{t('signInToWorkstation')}</Text>
             )}
           </TouchableOpacity>
+        </View>
 
-          <View style={styles.loginFooter}>
-            <Text style={styles.loginFooterText}>
-              College Minor Project BCA (Bachelor of Computer Applications)
-            </Text>
-          </View>
+        {/* Subtle Bottom Footer */}
+        <View style={styles.loginFooter}>
+          <Text style={styles.loginFooterText}>
+            {t('academicFooter')}
+          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -234,6 +354,24 @@ function CheckInDashboard({
   onNavigateToHistory,
   onNavigateToLeave,
 }) {
+  const { colors, isDark, toggleTheme } = useTheme();
+  const { t } = useLanguage();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
+  // Live ticking clock
+  const [liveClock, setLiveClock] = useState(new Date());
+  useEffect(() => {
+    const tTimer = setInterval(() => setLiveClock(new Date()), 1000);
+    return () => clearInterval(tTimer);
+  }, []);
+
+  const getGreeting = () => {
+    const hr = liveClock.getHours();
+    if (hr < 12) return t('goodMorning');
+    if (hr < 17) return t('goodAfternoon');
+    return t('goodEvening');
+  };
+
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   // Location & Geofence State
@@ -333,16 +471,16 @@ function CheckInDashboard({
       }
       setEnrollModalVisible(false);
       Alert.alert(
-        'Face Profile Saved',
-        `128-D biometric profile successfully registered for ${user?.full_name} (${user?.employee_id}). You can now perform attendance check-in.`,
-        [{ text: 'Proceed to Check-In' }]
+        t('faceSavedTitle'),
+        t('faceSavedMsg'),
+        [{ text: t('acknowledge') }]
       );
       setStatusBanner({
         type: 'success',
-        text: 'Biometric profile registered successfully! Ready for attendance check-in.',
+        text: t('faceSavedMsg'),
       });
     } catch (err) {
-      Alert.alert('Registration Issue', err.message || 'Face detection failed. Ensure exactly 1 face is clearly visible.');
+      Alert.alert(t('faceMismatchTitle'), err.message || t('faceMismatchMsg'));
     } finally {
       setIsEnrolling(false);
     }
@@ -353,14 +491,14 @@ function CheckInDashboard({
     setIsLocating(true);
     try {
       if (mode === 'mock_inside') {
-        const mockCoords = { latitude: 23.002220, longitude: 72.455770 }; // ~1.5m from SBS center
+        const mockCoords = { latitude: 23.002220, longitude: 72.455770 };
         setLocation(mockCoords);
         const d = calculateHaversine(mockCoords.latitude, mockCoords.longitude, OFFICE_LAT, OFFICE_LON);
         setDistance(d);
         setIsInsideGeofence(d <= GEOFENCE_RADIUS);
         return mockCoords;
       } else if (mode === 'mock_outside') {
-        const mockCoords = { latitude: 23.020000, longitude: 72.490000 }; // ~3.8 km outside SBS geofence
+        const mockCoords = { latitude: 23.020000, longitude: 72.490000 };
         setLocation(mockCoords);
         const d = calculateHaversine(mockCoords.latitude, mockCoords.longitude, OFFICE_LAT, OFFICE_LON);
         setDistance(d);
@@ -373,7 +511,7 @@ function CheckInDashboard({
       if (status !== 'granted') {
         setStatusBanner({
           type: 'error',
-          text: 'Location permission denied. GPS geofence verification is required.',
+          text: t('locationErrorMsg'),
         });
         return null;
       }
@@ -396,7 +534,7 @@ function CheckInDashboard({
     } catch (err) {
       setStatusBanner({
         type: 'error',
-        text: 'GPS Sensor Error: ' + (err.message || 'Failed to read coordinates.'),
+        text: err.message || t('locationErrorMsg'),
       });
       return null;
     } finally {
@@ -409,22 +547,20 @@ function CheckInDashboard({
     fetchCurrentLocation('real');
   }, []);
 
-  // DOMAINS 1 & 2 SIMULTANEOUS TRIGGER:
-  // Starts acquiring high-precision GPS AND opens the Camera Viewfinder concurrently
   const handleStartCheckIn = async () => {
     if (!user?.has_face_registered) {
       Alert.alert(
-        'Biometric Profile Required',
-        'You have not registered your biometric face reference yet. Would you like to enroll your face profile now?',
+        t('faceRegistrationRequired'),
+        t('faceRegistrationDesc'),
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: t('cancel'), style: 'cancel' },
           {
-            text: 'Enroll Face Now',
+            text: t('registerFaceNow'),
             onPress: async () => {
               if (!cameraPermission?.granted) {
                 const res = await requestCameraPermission();
                 if (!res.granted) {
-                  Alert.alert('Camera Access Required', 'Camera permission is required for face enrollment.');
+                  Alert.alert('Camera Access Required', 'Camera permission is required for face registration.');
                   return;
                 }
               }
@@ -442,51 +578,41 @@ function CheckInDashboard({
       if (!res.granted) {
         Alert.alert(
           'Camera Access Required',
-          'Dual-factor verification requires camera permission to capture live biometrics.'
+          'Camera permission is required to verify face attendance.'
         );
         return;
       }
     }
 
     setStatusBanner(null);
-
-    // 1. Concurrently trigger background GPS location refresh
     fetchCurrentLocation(demoMode);
-
-    // 2. Concurrently open the Camera Viewfinder for face alignment
     setCameraActive(true);
   };
 
-  // DOMAIN 3: CHECK-IN API REQUEST WITH BEARER TOKEN AND DYNAMIC UI ALERTS
   const handleCaptureAndCheckIn = async () => {
     if (!cameraRef.current) return;
 
     setIsProcessing(true);
-    setProcessingStatus('Capturing biometric frame...');
+    setProcessingStatus(t('syncing'));
 
     try {
-      // 1. Capture base64 image from device camera optimized for fast API upload
       const photo = await cameraRef.current.takePictureAsync({
         base64: true,
-        quality: 0.6, // Lightweight payload for fast upload + OpenCV facial clarity
+        quality: 0.6,
         skipProcessing: false,
       });
 
       setCameraActive(false);
 
-      // 2. Ensure high-accuracy GPS coordinates are ready
-      setProcessingStatus('Locking GPS coordinates...');
       let currentCoords = location;
       if (!currentCoords) {
         currentCoords = await fetchCurrentLocation(demoMode);
       }
 
       if (!currentCoords) {
-        throw new Error('Could not acquire valid GPS fix. Ensure location services are enabled.');
+        throw new Error(t('locationErrorMsg'));
       }
 
-      // 3. Dispatch POST request with Authorization: Bearer <token>
-      setProcessingStatus('Verifying face and geofence with AI server...');
       const cleanUrl = serverUrl.replace(/\/+$/, '');
       const endpoint = `${cleanUrl}/attendance/check-in`;
 
@@ -506,49 +632,35 @@ function CheckInDashboard({
 
       const data = await response.json();
 
-      // Dynamic Error Handling based on Exact HTTP Status Codes
       if (!response.ok) {
         const statusCode = response.status;
         const detailMsg = data.detail || 'Check-in failed.';
 
         if (statusCode === 403) {
-          // Geofence Perimeter Violation
           setResultModal({
             visible: true,
             type: 'geofence_error',
-            title: 'Geofence Perimeter Violation (403)',
-            message: detailMsg,
-            details: {
-              Reason: 'Device is physically located outside the 100-meter office perimeter.',
-              Office: `Campus HQ (${OFFICE_LAT} N, ${OFFICE_LON} E)`,
-              'Tip for Viva': 'Use the Viva Demo Toggle above to test inside vs outside.',
-            },
+            title: t('locationErrorTitle'),
+            message: t('locationErrorMsg'),
+            details: null,
           });
         } else if (statusCode === 401) {
-          // Biometric Face Mismatch
           setResultModal({
             visible: true,
             type: 'face_error',
-            title: 'Biometric Face Mismatch (401)',
-            message: detailMsg,
-            details: {
-              Reason: 'Live camera selfie does not match the enrolled 128-D biometric profile.',
-              Action: 'Ensure good lighting and hold face steady inside the oval frame.',
-            },
+            title: t('faceMismatchTitle'),
+            message: t('faceMismatchMsg'),
+            details: null,
           });
         } else if (statusCode === 409) {
-          // Anti-Duplicate Daily Punch Rule
           setResultModal({
             visible: true,
             type: 'duplicate_error',
-            title: 'Duplicate Punch Blocked (409)',
-            message: detailMsg,
-            details: {
-              Rule: 'Daily attendance has already been logged for today.',
-            },
+            title: t('duplicateCheckInTitle'),
+            message: t('duplicateCheckInMsg'),
+            details: null,
           });
         } else {
-          // Generic Error
           setResultModal({
             visible: true,
             type: 'error',
@@ -562,27 +674,25 @@ function CheckInDashboard({
         return;
       }
 
-      // HTTP 200 OK: Attendance Verified
       const checkInTime = data.check_in
-        ? new Date(data.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        ? new Date(data.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
         : 'Confirmed';
 
       setResultModal({
         visible: true,
         type: 'success',
-        title: 'Check-In Verified!',
-        message: `Attendance successfully recorded as ${data.status.toUpperCase()}.\nBoth Geofence and Facial Biometrics verified.`,
+        title: t('checkInVerified'),
+        message: t('checkInVerifiedMsg'),
         details: {
           Time: checkInTime,
-          Status: data.status.toUpperCase(),
-          Employee: `${user?.full_name} (${user?.employee_id})`,
-          Distance: `${data.distance_meters?.toFixed(1) || distance || 0}m to Office HQ`,
+          Status: (data.status || 'Present').toUpperCase(),
+          Employee: `${user?.full_name || user?.employee_id}`,
         },
       });
 
       setStatusBanner({
         type: 'success',
-        text: `Checked in successfully as ${data.status.toUpperCase()} at ${checkInTime}`,
+        text: `${t('checkInVerified')}: ${checkInTime}`,
       });
       fetchTodayStatus();
     } catch (err) {
@@ -591,7 +701,7 @@ function CheckInDashboard({
       setResultModal({
         visible: true,
         type: 'error',
-        title: 'Network / Verification Error',
+        title: 'Error',
         message: msg,
         details: null,
       });
@@ -602,10 +712,9 @@ function CheckInDashboard({
     }
   };
 
-  // Check-Out handler with location re-verification
   const handleCheckOut = async () => {
     setIsProcessing(true);
-    setProcessingStatus('Verifying location for Check-Out...');
+    setProcessingStatus(t('syncing'));
     try {
       let currentCoords = location;
       if (!currentCoords) {
@@ -620,8 +729,8 @@ function CheckInDashboard({
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          latitude: currentCoords.latitude,
-          longitude: currentCoords.longitude,
+          latitude: currentCoords?.latitude || OFFICE_LAT,
+          longitude: currentCoords?.longitude || OFFICE_LON,
           user_id: user?.id,
         }),
       });
@@ -632,14 +741,14 @@ function CheckInDashboard({
       }
 
       const outTime = data.check_out
-        ? new Date(data.check_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        ? new Date(data.check_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
         : 'Confirmed';
 
       setResultModal({
         visible: true,
         type: 'success',
-        title: 'Check-Out Completed',
-        message: `Shift ended successfully at ${outTime}. Have a great evening!`,
+        title: t('checkOutCompleted'),
+        message: t('checkOutCompletedMsg'),
         details: {
           Time: outTime,
           Employee: `${user?.full_name}`,
@@ -648,7 +757,7 @@ function CheckInDashboard({
 
       setStatusBanner({
         type: 'success',
-        text: `Checked out at ${outTime}`,
+        text: `${t('checkOutCompleted')}: ${outTime}`,
       });
       fetchTodayStatus();
     } catch (err) {
@@ -662,24 +771,101 @@ function CheckInDashboard({
   };
 
   return (
-    <ScrollView style={styles.dashboardContainer} contentContainerStyle={styles.scroll}>
-      {/* Top Employee Profile Bar */}
+    <ScrollView
+      style={styles.dashboardContainer}
+      contentContainerStyle={styles.scroll}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Top Employee Profile & Header */}
       <View style={styles.topBar}>
-        <View>
-          <View style={styles.badgeRow}>
-            <Text style={styles.empId}>{user?.employee_id || 'EMP001'}</Text>
-            <View style={styles.roleBadge}>
-              <Text style={styles.roleBadgeText}>{(user?.role || 'employee').toUpperCase()}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarText}>
+              {user?.full_name ? user.full_name.charAt(0).toUpperCase() : 'E'}
+            </Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.greetingText} numberOfLines={1}>
+              {getGreeting()}, {user?.full_name?.split(' ')[0] || 'Employee'} 👋
+            </Text>
+            <View style={styles.badgeRow}>
+              <Text style={styles.empId}>{user?.employee_id || 'EMP001'}</Text>
+              <View style={styles.roleBadge}>
+                <Text style={styles.roleBadgeText}>{(user?.role || 'employee').toUpperCase()}</Text>
+              </View>
             </View>
           </View>
-          <Text style={styles.empName}>{user?.full_name || 'Workforce Member'}</Text>
         </View>
-        <TouchableOpacity style={styles.logoutBtn} onPress={onLogout}>
-          <Text style={styles.logoutText}>Sign Out</Text>
-        </TouchableOpacity>
+
+        {/* Header Right Actions: Language Selector & Theme Toggle */}
+        <View style={styles.topBarRight}>
+          <LanguageSelector compact={true} />
+          <TouchableOpacity
+            style={styles.themeToggleBtn}
+            onPress={toggleTheme}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            {isDark ? <Sun size={20} color="#FBBF24" /> : <Moon size={20} color={colors.primary} />}
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Dynamic Status Alert Banner */}
+      {/* Hero Live Clock & Clean Status Card */}
+      <View style={styles.heroClockCard}>
+        <View style={styles.heroClockHeader}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Clock size={16} color={colors.primary} />
+            <Text style={styles.heroClockDate}>
+              {liveClock.toLocaleDateString('en-US', {
+                weekday: 'long',
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+              })}
+            </Text>
+          </View>
+
+          {/* Location Badge (Clean - No raw coordinates) */}
+          <View style={[styles.pulseStatusBadge, isInsideGeofence ? styles.pulseSuccess : styles.pulseDanger]}>
+            <View style={[styles.pulseDot, { backgroundColor: isInsideGeofence ? '#10B981' : '#EF4444' }]} />
+            <Text style={[styles.pulseText, { color: isInsideGeofence ? colors.successText : colors.dangerText }]}>
+              {isInsideGeofence ? t('atOffice') : t('outsideOffice')}
+            </Text>
+          </View>
+        </View>
+
+        {/* Digital Clock */}
+        <Text style={styles.heroClockTime}>
+          {liveClock.toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true,
+          })}
+        </Text>
+
+        {/* Status Indicators Row */}
+        <View style={styles.heroSubRow}>
+          <View style={styles.heroSubItem}>
+            <MapPin size={14} color={isInsideGeofence ? '#10B981' : colors.textSecondary} />
+            <Text style={styles.heroSubText}>
+              {isInsideGeofence ? t('atOffice') : t('outsideOffice')}
+            </Text>
+          </View>
+
+          <View style={styles.heroSubItem}>
+            <ScanFace size={14} color={user?.has_face_registered ? '#10B981' : '#F59E0B'} />
+            <Text style={styles.heroSubText}>
+              {user?.has_face_registered ? t('faceRegistered') : t('faceRequired')}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Dynamic Status Alert Banner (if any) */}
       {statusBanner && (
         <View
           style={[
@@ -698,211 +884,63 @@ function CheckInDashboard({
         </View>
       )}
 
-      {/* VIVA DEMO GPS SIMULATOR (Negative & Positive Test Showcase) */}
-      <View style={styles.demoCard}>
-        <View style={styles.demoHeader}>
-          <Text style={styles.demoTitle}>🎯 Viva Demo GPS Simulator</Text>
-          <Text style={styles.demoSubtitle}>Demonstrate geofencing without physically traveling</Text>
-        </View>
-        <View style={styles.demoBtnRow}>
-          <TouchableOpacity
-            style={[styles.demoModeBtn, demoMode === 'real' && styles.demoModeBtnActive]}
-            onPress={() => {
-              setDemoMode('real');
-              fetchCurrentLocation('real');
-            }}
-          >
-            <Text style={[styles.demoModeText, demoMode === 'real' && styles.demoModeTextActive]}>
-              📱 Real GPS
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.demoModeBtn, demoMode === 'mock_inside' && styles.demoModeBtnActive]}
-            onPress={() => {
-              setDemoMode('mock_inside');
-              fetchCurrentLocation('mock_inside');
-            }}
-          >
-            <Text style={[styles.demoModeText, demoMode === 'mock_inside' && styles.demoModeTextActive]}>
-              ✅ Inside (Pass)
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.demoModeBtn, demoMode === 'mock_outside' && styles.demoModeBtnActive]}
-            onPress={() => {
-              setDemoMode('mock_outside');
-              fetchCurrentLocation('mock_outside');
-            }}
-          >
-            <Text style={[styles.demoModeText, demoMode === 'mock_outside' && styles.demoModeTextActive]}>
-              🚫 Outside (403)
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* GPS Geofence Perimeter Card */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>GPS Geofence Perimeter</Text>
-          <TouchableOpacity onPress={() => fetchCurrentLocation(demoMode)} disabled={isLocating}>
-            <Text style={styles.refreshLink}>{isLocating ? 'Syncing...' : 'Refresh GPS'}</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.geoRow}>
-          <View
-            style={[
-              styles.statusPill,
-              isInsideGeofence ? styles.pillSuccess : styles.pillDanger,
-            ]}
-          >
-            <Text
-              style={[
-                styles.statusPillText,
-                isInsideGeofence ? styles.textSuccess : styles.textDanger,
-              ]}
-            >
-              {isInsideGeofence ? '● INSIDE OFFICE PERIMETER' : '● OUTSIDE OFFICE PERIMETER'}
-            </Text>
+      {/* Face Registration Prompt Card (Clean & Helpful) */}
+      {!user?.has_face_registered ? (
+        <View style={styles.promptCard}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={styles.promptIconCircle}>
+              <Camera size={22} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.promptCardTitle}>{t('faceRegistrationRequired')}</Text>
+              <Text style={styles.promptCardSub}>{t('faceRegistrationDesc')}</Text>
+            </View>
           </View>
 
-          <Text style={styles.distanceText}>
-            Distance to HQ: <Text style={styles.highlight}>{distance !== null ? `${distance} m` : 'Acquiring...'}</Text> (Max allowed: {GEOFENCE_RADIUS}m)
-          </Text>
-        </View>
-
-        {location && (
-          <View style={styles.coordsBox}>
-            <Text style={styles.coordsText}>
-              Lat: {location.latitude.toFixed(6)} | Lon: {location.longitude.toFixed(6)}
-            </Text>
-            <Text style={styles.officeCoordsText}>
-              Campus HQ: {OFFICE_LAT} N, {OFFICE_LON} E (SBS Shanti Business School, Shela, Ahmedabad)
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {/* Biometric Face Status Card */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>Biometric Face Profile</Text>
-          {!user?.has_face_registered && (
-            <TouchableOpacity
-              onPress={async () => {
-                if (!cameraPermission?.granted) {
-                  const res = await requestCameraPermission();
-                  if (!res.granted) {
-                    Alert.alert('Camera Access Required', 'Camera permission is required for face enrollment.');
-                    return;
-                  }
-                }
-                setEnrollModalVisible(true);
-              }}
-            >
-              <Text style={styles.enrollLink}>+ Enroll Face</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        <View style={styles.bioRow}>
-          <View style={styles.bioStatusPill}>
-            <Text style={user?.has_face_registered ? styles.textSuccess : styles.textWarning}>
-              {user?.has_face_registered ? '✓ 128-D Vector Ready' : '⚠ No Biometrics Enrolled'}
-            </Text>
-          </View>
-          <Text style={styles.bioSubtext}>
-            {user?.has_face_registered
-              ? 'Stored in database for real-time Euclidean distance matching (threshold <= 0.50).'
-              : 'Register face photo before attempting attendance check-in.'}
-          </Text>
-        </View>
-        {!user?.has_face_registered && (
           <TouchableOpacity
-            style={styles.enrollActionBtn}
+            style={styles.enrollBtn}
             onPress={async () => {
               if (!cameraPermission?.granted) {
                 const res = await requestCameraPermission();
                 if (!res.granted) {
-                  Alert.alert('Camera Access Required', 'Camera permission is required for face enrollment.');
+                  Alert.alert('Camera Permission', 'Camera permission is required to register face.');
                   return;
                 }
               }
               setEnrollModalVisible(true);
             }}
+            activeOpacity={0.8}
           >
-            <Text style={styles.enrollActionBtnText}>📸 Capture & Enroll Biometric Face</Text>
+            <Text style={styles.enrollBtnText}>📸 {t('registerFaceNow')}</Text>
           </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Live Camera Viewfinder Overlay for Check-In */}
-      {cameraActive && (
-        <View style={styles.cameraCard}>
-          <View style={styles.cameraHeader}>
-            <Text style={styles.cameraHeaderTitle}>Biometric Face Verification</Text>
-            <TouchableOpacity
-              onPress={() => setCameraFacing((prev) => (prev === 'front' ? 'back' : 'front'))}
-            >
-              <Text style={styles.cameraFlipText}>Flip Camera</Text>
-            </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.faceStatusRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <ScanFace size={16} color="#10B981" />
+            <Text style={styles.faceStatusText}>{t('faceRegistered')}</Text>
           </View>
-
-          <View style={styles.cameraContainer}>
-            <CameraView
-              ref={cameraRef}
-              style={styles.camera}
-              facing={cameraFacing}
-            />
-
-            {/* Subtle dark overlay behind guide */}
-            <View style={styles.cameraDarkOverlay} pointerEvents="none" />
-
-            {/* Target Face Oval Reticle */}
-            <View style={styles.faceReticleContainer} pointerEvents="none">
-              <View style={styles.faceOval} />
-              <Text style={styles.reticleInstruction}>Position face within the oval</Text>
-            </View>
-
-            {/* Viewfinder Controls */}
-            <View style={styles.cameraActions}>
-              <TouchableOpacity
-                style={styles.cancelCameraBtn}
-                onPress={() => setCameraActive(false)}
-                disabled={isProcessing}
-              >
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.captureBtn, isProcessing && styles.btnDisabled]}
-                onPress={handleCaptureAndCheckIn}
-                disabled={isProcessing}
-              >
-                {isProcessing ? (
-                  <ActivityIndicator color="#ffffff" size="small" />
-                ) : (
-                  <Text style={styles.captureText}>Verify & Check-In</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {isProcessing && (
-            <View style={styles.processingBar}>
-              <ActivityIndicator color="#38bdf8" size="small" />
-              <Text style={styles.processingText}>{processingStatus}</Text>
-            </View>
-          )}
+          <TouchableOpacity
+            onPress={async () => {
+              if (!cameraPermission?.granted) {
+                const res = await requestCameraPermission();
+                if (!res.granted) return;
+              }
+              setEnrollModalVisible(true);
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.updatePhotoText}>{t('updatePhoto')}</Text>
+          </TouchableOpacity>
         </View>
       )}
 
       {/* TODAY'S ATTENDANCE STATUS CARD */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>Today's Attendance Status</Text>
+          <Text style={styles.cardTitle}>{t('todayStatus')}</Text>
           <TouchableOpacity onPress={fetchTodayStatus} disabled={isLoadingToday}>
-            <Text style={styles.refreshLink}>{isLoadingToday ? 'Syncing...' : 'Refresh Status'}</Text>
+            <Text style={styles.refreshLink}>{isLoadingToday ? t('syncing') : t('refreshStatus')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -925,65 +963,54 @@ function CheckInDashboard({
                 </Text>
               </View>
               <Text style={styles.todayDateText}>
-                {new Date().toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' })}
+                {new Date().toLocaleDateString([], { weekday: 'short', day: '2-digit', month: 'short' })}
               </Text>
             </View>
 
             <View style={styles.todayPunchesRow}>
               <View style={styles.todayPunchCol}>
-                <Text style={styles.todayPunchLabel}>PUNCH IN</Text>
+                <Text style={styles.todayPunchLabel}>{t('punchIn').toUpperCase()}</Text>
                 <Text style={styles.todayPunchVal}>
                   {todayRecord.check_in
-                    ? new Date(todayRecord.check_in).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+                    ? new Date(todayRecord.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
                     : '--:--'}
                 </Text>
               </View>
               <View style={styles.todayPunchDivider} />
               <View style={styles.todayPunchCol}>
-                <Text style={styles.todayPunchLabel}>PUNCH OUT</Text>
+                <Text style={styles.todayPunchLabel}>{t('punchOut').toUpperCase()}</Text>
                 <Text style={[styles.todayPunchVal, !todayRecord.check_out && styles.todayPunchActive]}>
                   {todayRecord.check_out
-                    ? new Date(todayRecord.check_out).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
-                    : 'Active Shift'}
+                    ? new Date(todayRecord.check_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
+                    : t('activeShift')}
                 </Text>
               </View>
-            </View>
-
-            <View style={styles.todayBadgeRow}>
-              <Text style={styles.todayBadgeText}>
-                {todayRecord.face_verified ? '✓ Face Biometrics Verified' : '✗ Face Unverified'}
-              </Text>
-              <Text style={styles.todayBadgeText}>
-                {todayRecord.location_verified
-                  ? `✓ GPS Perimeter (${todayRecord.distance_meters !== null && todayRecord.distance_meters !== undefined ? `${todayRecord.distance_meters.toFixed(1)}m` : '0m'})`
-                  : '✗ Outside Perimeter'}
-              </Text>
             </View>
           </View>
         ) : (
           <View style={styles.todayEmptyBox}>
-            <Text style={styles.todayEmptyTitle}>No punch recorded today yet</Text>
+            <Text style={styles.todayEmptyTitle}>{t('notCheckedIn')}</Text>
             <Text style={styles.todayEmptySub}>
-              Use the Punch Check-In button below with live camera inside SBS Shanti Business School perimeter.
+              {t('checkInVerifiedMsg')}
             </Text>
           </View>
         )}
       </View>
 
-      {/* Main Action Buttons */}
+      {/* Main Action Buttons: Check-In & Check-Out */}
       {!cameraActive && (
         <View style={styles.actionContainer}>
           <TouchableOpacity
             style={[styles.primaryBtn, isProcessing && styles.btnDisabled]}
             onPress={handleStartCheckIn}
             disabled={isProcessing}
+            activeOpacity={0.8}
           >
             {isProcessing ? (
               <ActivityIndicator color="#ffffff" />
             ) : (
               <View style={styles.btnContent}>
-                <Text style={styles.btnText}>Punch Check-In</Text>
-                <Text style={styles.btnSubtext}>Dual-Factor Biometrics + GPS Geofencing</Text>
+                <Text style={styles.btnText}>{t('checkIn')}</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -992,58 +1019,14 @@ function CheckInDashboard({
             style={[styles.secondaryBtn, isProcessing && styles.btnDisabled]}
             onPress={handleCheckOut}
             disabled={isProcessing}
+            activeOpacity={0.8}
           >
-            <Text style={styles.secondaryBtnText}>Punch Check-Out (End Shift)</Text>
+            <Text style={styles.secondaryBtnText}>{t('checkOut')}</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {/* QUICK PORTAL NAVIGATION CARDS */}
-      {!cameraActive && (
-        <View style={styles.portalNavBox}>
-          <Text style={styles.portalNavHeader}>Employee Portal</Text>
-
-          <TouchableOpacity
-            style={styles.historyNavCard}
-            onPress={onNavigateToHistory}
-            activeOpacity={0.8}
-          >
-            <View style={styles.historyNavIconCircle}>
-              <Text style={styles.historyNavIconText}>📋</Text>
-            </View>
-            <View style={styles.historyNavInfo}>
-              <View style={styles.historyNavTitleRow}>
-                <Text style={styles.historyNavTitle}>Attendance History</Text>
-                <Text style={styles.historyNavArrow}>View Logs →</Text>
-              </View>
-              <Text style={styles.historyNavSub}>
-                Inspect historical attendance records, timestamps, late arrivals & geofence telemetry
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.leaveNavCard}
-            onPress={onNavigateToLeave}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.historyNavIconCircle, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
-              <Text style={styles.historyNavIconText}>📝</Text>
-            </View>
-            <View style={styles.historyNavInfo}>
-              <View style={styles.historyNavTitleRow}>
-                <Text style={styles.historyNavTitle}>Leave Management</Text>
-                <Text style={styles.leaveNavArrow}>Apply / Review →</Text>
-              </View>
-              <Text style={styles.historyNavSub}>
-                Submit academic/sick leave requests and track administrative approval status
-              </Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* DYNAMIC RESULT MODAL */}
+      {/* Clean Dynamic Result Modal */}
       <Modal
         visible={resultModal.visible}
         transparent
@@ -1084,80 +1067,184 @@ function CheckInDashboard({
               style={styles.modalDismissBtn}
               onPress={() => setResultModal((prev) => ({ ...prev, visible: false }))}
             >
-              <Text style={styles.modalDismissText}>Acknowledge</Text>
+              <Text style={styles.modalDismissText}>{t('acknowledge')}</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* BIOMETRIC FACE ENROLLMENT MODAL */}
-      <Modal
-        visible={enrollModalVisible}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={() => setEnrollModalVisible(false)}
-      >
-        <View style={styles.enrollModalContainer}>
-          <View style={styles.cameraHeader}>
-            <Text style={styles.cameraHeaderTitle}>Biometric Face Enrollment</Text>
-            <TouchableOpacity
-              onPress={() => setEnrollFacing((prev) => (prev === 'front' ? 'back' : 'front'))}
-            >
-              <Text style={styles.cameraFlipText}>Flip Camera</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.enrollInfoBox}>
-            <Text style={styles.enrollInfoTitle}>Enrolling: {user?.full_name} ({user?.employee_id})</Text>
-            <Text style={styles.enrollInfoSub}>
-              Center your face within the blue oval reticle. Ensure adequate lighting and remove face coverings. Exactly one face must be visible.
-            </Text>
-          </View>
-
-          <View style={styles.cameraContainer}>
+      {/* FULL-SCREEN ATTENDANCE CHECK-IN CAMERA MODAL */}
+      {cameraActive && (
+        <Modal
+          visible={true}
+          animationType="slide"
+          statusBarTranslucent={true}
+          onRequestClose={() => {
+            if (!isProcessing) setCameraActive(false);
+          }}
+        >
+          <View style={styles.fullScreenCamera}>
             <CameraView
-              ref={enrollCameraRef}
-              style={styles.camera}
-              facing={enrollFacing}
+              key={cameraFacing}
+              ref={cameraRef}
+              style={{ flex: 1, width: '100%', height: '100%' }}
+              facing={cameraFacing}
+              mode="picture"
+              autofocus="on"
             />
-            {/* Subtle dark overlay behind guide */}
-            <View style={styles.cameraDarkOverlay} pointerEvents="none" />
-            <View style={styles.faceReticleContainer} pointerEvents="none">
-              <View style={[styles.faceOval, { borderColor: '#38bdf8' }]} />
-              <Text style={styles.reticleInstruction}>Position face inside the blue oval</Text>
+
+            {/* Centered Target Face Oval Reticle */}
+            <View style={styles.fullScreenReticleContainer} pointerEvents="none">
+              <View style={styles.fullScreenFaceOval} />
+              <Text style={styles.fullScreenInstructionText}>{t('positionFaceOval')}</Text>
             </View>
-          </View>
 
-          <View style={styles.enrollActions}>
-            <TouchableOpacity
-              style={styles.cancelCameraBtn}
-              onPress={() => setEnrollModalVisible(false)}
-              disabled={isEnrolling}
-            >
-              <Text style={styles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
+            {/* Top Header Overlay */}
+            <SafeAreaView style={styles.cameraTopOverlay}>
+              <View style={styles.cameraTopRow}>
+                <TouchableOpacity
+                  style={styles.cameraOverlayBtn}
+                  onPress={() => setCameraActive(false)}
+                  disabled={isProcessing}
+                  activeOpacity={0.7}
+                >
+                  <X size={22} color="#ffffff" />
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.captureBtn, isEnrolling && styles.btnDisabled]}
-              onPress={handleEnrollFace}
-              disabled={isEnrolling}
-            >
-              {isEnrolling ? (
-                <ActivityIndicator color="#ffffff" size="small" />
-              ) : (
-                <Text style={styles.captureText}>Capture & Save Reference</Text>
+                <View style={styles.cameraTitlePill}>
+                  <Text style={styles.cameraTitleText}>{t('checkIn')}</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.cameraOverlayBtn}
+                  onPress={() => setCameraFacing((prev) => (prev === 'front' ? 'back' : 'front'))}
+                  disabled={isProcessing}
+                  activeOpacity={0.7}
+                >
+                  <RotateCcw size={20} color="#ffffff" />
+                </TouchableOpacity>
+              </View>
+            </SafeAreaView>
+
+            {/* Bottom Actions Overlay */}
+            <SafeAreaView style={styles.cameraBottomOverlay}>
+              <View style={styles.cameraBottomActions}>
+                <TouchableOpacity
+                  style={styles.cameraBottomCancelBtn}
+                  onPress={() => setCameraActive(false)}
+                  disabled={isProcessing}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.cameraBottomCancelText}>{t('cancel')}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.cameraCaptureActionBtn, isProcessing && styles.btnDisabled]}
+                  onPress={handleCaptureAndCheckIn}
+                  disabled={isProcessing}
+                  activeOpacity={0.8}
+                >
+                  {isProcessing ? (
+                    <ActivityIndicator color="#ffffff" size="small" />
+                  ) : (
+                    <Text style={styles.cameraCaptureActionText}>{t('verifyAndCheckIn')}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {isProcessing && (
+                <View style={styles.processingBarModal}>
+                  <ActivityIndicator color="#ffffff" size="small" />
+                  <Text style={styles.processingBarText}>{processingStatus || t('syncing')}</Text>
+                </View>
               )}
-            </TouchableOpacity>
+            </SafeAreaView>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
 
-      {/* College Minor Project Footer */}
-      <View style={styles.dashboardFooter}>
-        <Text style={styles.dashboardFooterText}>
-          College Minor Project BCA (Bachelor of Computer Applications)
-        </Text>
-      </View>
+      {/* FULL-SCREEN FACE REGISTRATION / ENROLLMENT MODAL */}
+      {enrollModalVisible && (
+        <Modal
+          visible={true}
+          animationType="slide"
+          statusBarTranslucent={true}
+          onRequestClose={() => {
+            if (!isEnrolling) setEnrollModalVisible(false);
+          }}
+        >
+          <View style={styles.fullScreenCamera}>
+            <CameraView
+              key={enrollFacing}
+              ref={enrollCameraRef}
+              style={{ flex: 1, width: '100%', height: '100%' }}
+              facing={enrollFacing}
+              mode="picture"
+              autofocus="on"
+            />
+
+            {/* Centered Target Face Oval Reticle */}
+            <View style={styles.fullScreenReticleContainer} pointerEvents="none">
+              <View style={styles.fullScreenFaceOval} />
+              <Text style={styles.fullScreenInstructionText}>{t('positionFaceOval')}</Text>
+            </View>
+
+            {/* Top Header Overlay */}
+            <SafeAreaView style={styles.cameraTopOverlay}>
+              <View style={styles.cameraTopRow}>
+                <TouchableOpacity
+                  style={styles.cameraOverlayBtn}
+                  onPress={() => setEnrollModalVisible(false)}
+                  disabled={isEnrolling}
+                  activeOpacity={0.7}
+                >
+                  <X size={22} color="#ffffff" />
+                </TouchableOpacity>
+
+                <View style={styles.cameraTitlePill}>
+                  <Text style={styles.cameraTitleText}>{t('registerFaceNow')}</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.cameraOverlayBtn}
+                  onPress={() => setEnrollFacing((prev) => (prev === 'front' ? 'back' : 'front'))}
+                  disabled={isEnrolling}
+                  activeOpacity={0.7}
+                >
+                  <RotateCcw size={20} color="#ffffff" />
+                </TouchableOpacity>
+              </View>
+            </SafeAreaView>
+
+            {/* Bottom Actions Overlay */}
+            <SafeAreaView style={styles.cameraBottomOverlay}>
+              <View style={styles.cameraBottomActions}>
+                <TouchableOpacity
+                  style={styles.cameraBottomCancelBtn}
+                  onPress={() => setEnrollModalVisible(false)}
+                  disabled={isEnrolling}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.cameraBottomCancelText}>{t('cancel')}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.cameraCaptureActionBtn, isEnrolling && styles.btnDisabled]}
+                  onPress={handleEnrollFace}
+                  disabled={isEnrolling}
+                  activeOpacity={0.8}
+                >
+                  {isEnrolling ? (
+                    <ActivityIndicator color="#ffffff" size="small" />
+                  ) : (
+                    <Text style={styles.cameraCaptureActionText}>{t('saveFace')}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </SafeAreaView>
+          </View>
+        </Modal>
+      )}
     </ScrollView>
   );
 }
@@ -1165,7 +1252,11 @@ function CheckInDashboard({
 // ==============================================================================
 // 4. ROOT APP ENTRY & VIEW CONTROLLER
 // ==============================================================================
-export default function App() {
+function AppContent() {
+  const { colors, isDark } = useTheme();
+  const { t } = useLanguage();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL);
@@ -1217,7 +1308,10 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="light-content" backgroundColor="#090d16" />
+        <StatusBar
+          barStyle={isDark ? 'light-content' : 'dark-content'}
+          backgroundColor={colors.background}
+        />
         {!token ? (
           <LoginScreen
             onLoginSuccess={handleLoginSuccess}
@@ -1265,7 +1359,7 @@ export default function App() {
               >
                 <Text style={styles.bottomTabIcon}>🏠</Text>
                 <Text style={[styles.bottomTabText, currentScreen === 'dashboard' && styles.bottomTabTextActive]}>
-                  Dashboard
+                  {t('dashboard')}
                 </Text>
               </TouchableOpacity>
 
@@ -1276,7 +1370,7 @@ export default function App() {
               >
                 <Text style={styles.bottomTabIcon}>📋</Text>
                 <Text style={[styles.bottomTabText, currentScreen === 'history' && styles.bottomTabTextActive]}>
-                  History
+                  {t('history')}
                 </Text>
               </TouchableOpacity>
 
@@ -1287,7 +1381,7 @@ export default function App() {
               >
                 <Text style={styles.bottomTabIcon}>📝</Text>
                 <Text style={[styles.bottomTabText, currentScreen === 'leave' && styles.bottomTabTextActive]}>
-                  Leaves
+                  {t('leaves')}
                 </Text>
               </TouchableOpacity>
 
@@ -1298,7 +1392,7 @@ export default function App() {
               >
                 <Text style={styles.bottomTabIcon}>🚪</Text>
                 <Text style={[styles.bottomTabText, { color: '#ef4444' }]}>
-                  Sign Out
+                  {t('signOut')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1309,78 +1403,248 @@ export default function App() {
   );
 }
 
+export default function App() {
+  return (
+    <ThemeProvider>
+      <LanguageProvider>
+        <AppContent />
+      </LanguageProvider>
+    </ThemeProvider>
+  );
+}
+
 // ==============================================================================
 // 5. STYLES
 // ==============================================================================
-const styles = StyleSheet.create({
+const createStyles = (colors, isDark) =>
+  StyleSheet.create({
+    avatarCircle: {
+      width: 44,
+      height: 44,
+      borderRadius: 16,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    avatarText: {
+      color: '#FFFFFF',
+      fontSize: 18,
+      fontWeight: '800',
+    },
+    greetingText: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      marginBottom: 2,
+    },
+    themeToggleBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    heroClockCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 24,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+      shadowColor: colors.shadowColor,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: isDark ? 0.3 : 0.05,
+      shadowRadius: 12,
+      elevation: 3,
+      gap: 12,
+    },
+    heroClockHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    heroClockDate: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    pulseStatusBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 20,
+      borderWidth: 1,
+    },
+    pulseSuccess: {
+      backgroundColor: colors.successBg,
+      borderColor: colors.successBorder,
+    },
+    pulseDanger: {
+      backgroundColor: colors.dangerBg,
+      borderColor: colors.dangerBorder,
+    },
+    pulseDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+    },
+    pulseText: {
+      fontSize: 11,
+      fontWeight: '800',
+      letterSpacing: 0.3,
+    },
+    heroClockTime: {
+      fontSize: 34,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: 0.5,
+      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+      textAlign: 'center',
+      marginVertical: 4,
+    },
+    heroSubRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      alignItems: 'center',
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.borderSubtle,
+    },
+    heroSubItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    heroSubText: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
   safeArea: {
     flex: 1,
-    backgroundColor: '#090d16',
+    backgroundColor: colors.background,
   },
   container: {
     flex: 1,
-    backgroundColor: '#090d16',
+    backgroundColor: colors.background,
   },
   dashboardContainer: {
     flex: 1,
-    backgroundColor: '#090d16',
+    backgroundColor: colors.background,
   },
   scroll: {
-    padding: 18,
-    gap: 16,
-    paddingBottom: 40,
+    padding: 16,
+    gap: 14,
+    paddingBottom: 110,
   },
   loginScroll: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 30,
   },
-  loginCard: {
-    backgroundColor: '#111827',
-    borderRadius: 20,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: '#1f2937',
-    gap: 16,
+  loginTopBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 4,
   },
-  loginHeader: {
+  loginTopBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
-  },
-  systemBadge: {
-    backgroundColor: '#0284c720',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#0284c740',
+    borderColor: colors.primaryBorder,
   },
-  systemBadgeText: {
-    color: '#38bdf8',
-    fontSize: 10,
-    fontWeight: '700',
+  loginTopBadgeText: {
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '800',
     letterSpacing: 0.5,
   },
+  loginTopActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  loginCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 16,
+    shadowColor: colors.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  loginCardHeader: {
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  loginLogoCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
   loginTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
-    color: '#f8fafc',
+    color: colors.textPrimary,
+    textAlign: 'center',
   },
   loginSubtitle: {
     fontSize: 13,
-    color: '#94a3b8',
+    color: colors.textSecondary,
+    textAlign: 'center',
     lineHeight: 18,
   },
-  loginErrorBox: {
-    backgroundColor: '#ef444415',
+  configBox: {
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: 12,
+    padding: 12,
+    gap: 6,
     borderWidth: 1,
-    borderColor: '#ef444440',
-    borderRadius: 8,
-    padding: 10,
+    borderColor: colors.border,
+  },
+  configLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+  },
+  loginErrorBox: {
+    backgroundColor: colors.dangerBg,
+    borderWidth: 1,
+    borderColor: colors.dangerBorder,
+    borderRadius: 10,
+    padding: 12,
   },
   loginErrorText: {
-    color: '#f87171',
+    color: colors.dangerText,
     fontSize: 12,
+    fontWeight: '500',
   },
   formGroup: {
     gap: 6,
@@ -1388,64 +1652,217 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#cbd5e1',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   textInput: {
-    backgroundColor: '#1e293b',
-    borderRadius: 10,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: '#ffffff',
+    color: colors.textPrimary,
     fontSize: 14,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.border,
   },
   monoInput: {
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     fontSize: 12,
-    color: '#38bdf8',
+    color: colors.primary,
+    backgroundColor: colors.surfaceSubtle,
   },
   configToggle: {
     alignSelf: 'flex-end',
+    paddingVertical: 4,
   },
   configToggleText: {
-    color: '#38bdf8',
-    fontSize: 11,
+    color: colors.primary,
+    fontSize: 12,
     fontWeight: '600',
   },
   configHint: {
-    fontSize: 10,
-    color: '#64748b',
-    lineHeight: 14,
+    fontSize: 11,
+    color: colors.textSecondary,
+    lineHeight: 16,
   },
   loginBtn: {
-    backgroundColor: '#0284c7',
-    borderRadius: 12,
+    backgroundColor: colors.primary,
+    borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 4,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
   },
   loginBtnText: {
-    color: '#ffffff',
+    color: colors.textInverse,
     fontSize: 15,
     fontWeight: '700',
   },
   loginFooter: {
-    marginTop: 10,
+    marginTop: 24,
     alignItems: 'center',
+    paddingHorizontal: 16,
   },
   loginFooterText: {
     fontSize: 11,
-    color: '#64748b',
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  popupCard: {
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: colors.surface,
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: colors.shadowColor,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  popupIconCircle: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: colors.dangerBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.dangerBorder,
+  },
+  popupTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  popupMessage: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  popupBtn: {
+    width: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  popupBtnText: {
+    color: colors.textInverse,
+    fontSize: 14,
+    fontWeight: '700',
   },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
     borderBottomWidth: 1,
-    borderColor: '#1e293b',
-    marginBottom: 4,
+    borderBottomColor: colors.border,
+    marginBottom: 6,
+  },
+  topBarRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginRight: 6,
+  },
+  promptCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 14,
+    shadowColor: colors.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  promptIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  promptCardTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginBottom: 2,
+  },
+  promptCardSub: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 16,
+  },
+  enrollBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  enrollBtnText: {
+    color: colors.textInverse,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  faceStatusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  faceStatusText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  updatePhotoText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
   },
   badgeRow: {
     flexDirection: 'row',
@@ -1455,36 +1872,38 @@ const styles = StyleSheet.create({
   empId: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#38bdf8',
+    color: colors.primary,
     letterSpacing: 0.5,
   },
   roleBadge: {
-    backgroundColor: '#0284c725',
-    paddingHorizontal: 6,
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#0284c740',
+    borderColor: colors.primaryBorder,
   },
   roleBadgeText: {
-    color: '#38bdf8',
+    color: colors.primary,
     fontSize: 9,
     fontWeight: '800',
   },
   empName: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#ffffff',
+    color: colors.textPrimary,
     marginTop: 2,
   },
   logoutBtn: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   logoutText: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -1494,12 +1913,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   bannerSuccess: {
-    backgroundColor: '#10b98115',
-    borderColor: '#10b98140',
+    backgroundColor: colors.successBg,
+    borderColor: colors.successBorder,
   },
   bannerError: {
-    backgroundColor: '#ef444415',
-    borderColor: '#ef444440',
+    backgroundColor: colors.dangerBg,
+    borderColor: colors.dangerBorder,
   },
   bannerText: {
     fontSize: 13,
@@ -1507,17 +1926,17 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   bannerTextSuccess: {
-    color: '#34d399',
+    color: colors.successText,
   },
   bannerTextError: {
-    color: '#f87171',
+    color: colors.dangerText,
   },
   demoCard: {
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.surfaceSubtle,
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#38bdf840',
+    borderColor: colors.border,
     gap: 10,
   },
   demoHeader: {
@@ -1526,11 +1945,11 @@ const styles = StyleSheet.create({
   demoTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#38bdf8',
+    color: colors.primary,
   },
   demoSubtitle: {
     fontSize: 11,
-    color: '#94a3b8',
+    color: colors.textSecondary,
   },
   demoBtnRow: {
     flexDirection: 'row',
@@ -1538,32 +1957,37 @@ const styles = StyleSheet.create({
   },
   demoModeBtn: {
     flex: 1,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     borderRadius: 8,
     paddingVertical: 8,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.border,
   },
   demoModeBtnActive: {
-    backgroundColor: '#0284c7',
-    borderColor: '#38bdf8',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   demoModeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#94a3b8',
+    color: colors.textSecondary,
   },
   demoModeTextActive: {
-    color: '#ffffff',
+    color: colors.textInverse,
   },
   card: {
-    backgroundColor: '#111827',
-    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 18,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#1f2937',
+    borderColor: colors.border,
     gap: 10,
+    shadowColor: colors.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -1573,10 +1997,10 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#e2e8f0',
+    color: colors.textPrimary,
   },
   refreshLink: {
-    color: '#38bdf8',
+    color: colors.primary,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -1587,48 +2011,54 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 6,
+    borderRadius: 8,
   },
   pillSuccess: {
-    backgroundColor: '#10b98125',
+    backgroundColor: colors.successBg,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
   },
   pillDanger: {
-    backgroundColor: '#ef444425',
+    backgroundColor: colors.dangerBg,
+    borderWidth: 1,
+    borderColor: colors.dangerBorder,
   },
   statusPillText: {
     fontSize: 11,
     fontWeight: '700',
   },
   textSuccess: {
-    color: '#34d399',
+    color: colors.successText,
   },
   textDanger: {
-    color: '#f87171',
+    color: colors.dangerText,
   },
   textWarning: {
-    color: '#fbbf24',
+    color: colors.warningText,
   },
   distanceText: {
-    color: '#cbd5e1',
+    color: colors.textSecondary,
     fontSize: 13,
   },
   highlight: {
     fontWeight: '700',
-    color: '#f8fafc',
+    color: colors.textPrimary,
   },
   coordsBox: {
-    backgroundColor: '#090d16',
-    borderRadius: 8,
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: 10,
     padding: 10,
     gap: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   coordsText: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 11,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   officeCoordsText: {
-    color: '#64748b',
+    color: colors.textMuted,
     fontSize: 10,
   },
   bioRow: {
@@ -1639,30 +2069,163 @@ const styles = StyleSheet.create({
   },
   bioSubtext: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     lineHeight: 16,
+  },
+  fullScreenCamera: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#000000',
+    position: 'relative',
+  },
+  fullScreenOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+  },
+  fullScreenReticleContainer: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 40,
+  },
+  fullScreenFaceOval: {
+    width: 240,
+    height: 310,
+    borderRadius: 120,
+    borderWidth: 2.5,
+    borderColor: '#38bdf8',
+    borderStyle: 'dashed',
+    backgroundColor: 'rgba(56, 189, 248, 0.06)',
+  },
+  fullScreenInstructionText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 18,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    overflow: 'hidden',
+    letterSpacing: 0.3,
+  },
+  cameraTopOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+  },
+  cameraTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+  },
+  cameraOverlayBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cameraTitlePill: {
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  cameraTitleText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  cameraBottomOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+  },
+  cameraBottomActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    paddingTop: 12,
+  },
+  cameraBottomCancelBtn: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  cameraBottomCancelText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  cameraCaptureActionBtn: {
+    flex: 2,
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  cameraCaptureActionText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  processingBarModal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+  },
+  processingBarText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   cameraCard: {
     backgroundColor: '#000000',
-    borderRadius: 16,
+    borderRadius: 18,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#38bdf880',
+    borderColor: colors.primary,
   },
   cameraHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     padding: 12,
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.surface,
     alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   cameraHeaderTitle: {
-    color: '#f8fafc',
+    color: colors.textPrimary,
     fontSize: 13,
     fontWeight: '700',
   },
   cameraFlipText: {
-    color: '#38bdf8',
+    color: colors.primary,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -1695,9 +2258,9 @@ const styles = StyleSheet.create({
     height: 270,
     borderRadius: 105,
     borderWidth: 2.5,
-    borderColor: '#38bdf8',
+    borderColor: colors.primary,
     borderStyle: 'dashed',
-    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    backgroundColor: 'rgba(79, 70, 229, 0.08)',
   },
   reticleInstruction: {
     color: '#ffffff',
@@ -1721,25 +2284,27 @@ const styles = StyleSheet.create({
   },
   cancelCameraBtn: {
     flex: 1,
-    backgroundColor: '#334155',
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: 'center',
   },
   cancelText: {
-    color: '#ffffff',
+    color: colors.textPrimary,
     fontWeight: '700',
     fontSize: 14,
   },
   captureBtn: {
     flex: 2,
-    backgroundColor: '#0284c7',
+    backgroundColor: colors.primary,
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: 'center',
   },
   captureText: {
-    color: '#ffffff',
+    color: colors.textInverse,
     fontWeight: '800',
     fontSize: 14,
   },
@@ -1748,11 +2313,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 10,
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.surfaceSubtle,
     gap: 8,
   },
   processingText: {
-    color: '#38bdf8',
+    color: colors.primary,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -1760,12 +2325,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   primaryBtn: {
-    backgroundColor: '#0284c7',
+    backgroundColor: colors.primary,
     borderRadius: 16,
     paddingVertical: 16,
     alignItems: 'center',
-    shadowColor: '#0284c7',
-    shadowOpacity: 0.3,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 4,
   },
@@ -1773,27 +2339,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   btnText: {
-    color: '#ffffff',
+    color: colors.textInverse,
     fontSize: 17,
     fontWeight: '800',
     letterSpacing: 0.3,
   },
   btnSubtext: {
-    color: '#bae6fd',
+    color: colors.primaryLight,
     fontSize: 11,
     fontWeight: '500',
     marginTop: 2,
   },
   secondaryBtn: {
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.border,
   },
   secondaryBtnText: {
-    color: '#cbd5e1',
+    color: colors.textSecondary,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -1802,20 +2368,25 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: '#000000bb',
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
   modalCard: {
-    backgroundColor: '#111827',
-    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderRadius: 24,
     padding: 24,
     width: '100%',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#1f2937',
+    borderColor: colors.border,
     gap: 12,
+    shadowColor: colors.shadowColor,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 6,
   },
   modalIconRing: {
     width: 60,
@@ -1826,63 +2397,64 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   ringSuccess: {
-    borderColor: '#10b981',
-    backgroundColor: '#10b98120',
+    borderColor: colors.success,
+    backgroundColor: colors.successBg,
   },
   ringWarning: {
-    borderColor: '#f59e0b',
-    backgroundColor: '#f59e0b20',
+    borderColor: colors.warning,
+    backgroundColor: colors.warningBg,
   },
   ringDanger: {
-    borderColor: '#ef4444',
-    backgroundColor: '#ef444420',
+    borderColor: colors.danger,
+    backgroundColor: colors.dangerBg,
   },
   ringInfo: {
-    borderColor: '#38bdf8',
-    backgroundColor: '#38bdf820',
+    borderColor: colors.info,
+    backgroundColor: colors.infoBg,
   },
   modalIconText: {
-    color: '#ffffff',
     fontSize: 28,
     fontWeight: '800',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#f8fafc',
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   modalMessage: {
     fontSize: 13,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
   },
   modalDetailsBox: {
-    backgroundColor: '#090d16',
-    borderRadius: 10,
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: 12,
     padding: 12,
     width: '100%',
     gap: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   detailKey: {
-    color: '#64748b',
+    color: colors.textSecondary,
     fontSize: 11,
     fontWeight: '600',
   },
   detailVal: {
-    color: '#e2e8f0',
+    color: colors.textPrimary,
     fontSize: 11,
     fontWeight: '700',
     textAlign: 'right',
   },
   modalDismissBtn: {
-    backgroundColor: '#0284c7',
-    borderRadius: 12,
+    backgroundColor: colors.primary,
+    borderRadius: 14,
     paddingVertical: 12,
     paddingHorizontal: 28,
     width: '100%',
@@ -1890,49 +2462,49 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   modalDismissText: {
-    color: '#ffffff',
+    color: colors.textInverse,
     fontWeight: '700',
     fontSize: 14,
   },
   enrollLink: {
-    color: '#38bdf8',
+    color: colors.primary,
     fontSize: 12,
     fontWeight: '700',
   },
   enrollActionBtn: {
     marginTop: 12,
-    backgroundColor: '#0284c7',
+    backgroundColor: colors.primary,
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
   },
   enrollActionBtnText: {
-    color: '#ffffff',
+    color: colors.textInverse,
     fontSize: 13,
     fontWeight: '700',
   },
   enrollModalContainer: {
     flex: 1,
-    backgroundColor: '#090d16',
+    backgroundColor: colors.background,
     padding: 16,
     paddingTop: Platform.OS === 'ios' ? 50 : 24,
   },
   enrollInfoBox: {
-    backgroundColor: '#111827',
+    backgroundColor: colors.surface,
     padding: 14,
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#1f2937',
+    borderColor: colors.border,
   },
   enrollInfoTitle: {
-    color: '#f8fafc',
+    color: colors.textPrimary,
     fontSize: 14,
     fontWeight: '700',
     marginBottom: 4,
   },
   enrollInfoSub: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 12,
     lineHeight: 16,
   },
@@ -1946,13 +2518,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#1e293b',
+    borderTopColor: colors.border,
     marginTop: 24,
     marginBottom: 16,
   },
   dashboardFooterText: {
     fontSize: 11,
-    color: '#64748b',
+    color: colors.textMuted,
     textAlign: 'center',
     fontWeight: '500',
   },
@@ -1963,7 +2535,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   portalNavHeader: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -1972,30 +2544,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   historyNavCard: {
-    backgroundColor: '#111827',
-    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.25)',
+    borderColor: colors.border,
+    shadowColor: colors.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
   },
   leaveNavCard: {
-    backgroundColor: '#111827',
-    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.25)',
+    borderColor: colors.border,
+    shadowColor: colors.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
   },
   historyNavIconCircle: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    backgroundColor: colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
@@ -2013,22 +2595,22 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   historyNavTitle: {
-    color: '#f8fafc',
+    color: colors.textPrimary,
     fontSize: 15,
     fontWeight: '700',
   },
   historyNavArrow: {
-    color: '#38bdf8',
+    color: colors.primary,
     fontSize: 12,
     fontWeight: '700',
   },
   leaveNavArrow: {
-    color: '#10b981',
+    color: colors.accent,
     fontSize: 12,
     fontWeight: '700',
   },
   historyNavSub: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 12,
     lineHeight: 16,
   },
@@ -2041,18 +2623,20 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   todayDateText: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '600',
   },
   todayPunchesRow: {
     flexDirection: 'row',
-    backgroundColor: '#0c1222',
-    borderRadius: 10,
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: 12,
     paddingVertical: 10,
     paddingHorizontal: 14,
     justifyContent: 'space-between',
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   todayPunchCol: {
     flex: 1,
@@ -2061,21 +2645,21 @@ const styles = StyleSheet.create({
   todayPunchDivider: {
     width: 1,
     height: 28,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.border,
   },
   todayPunchLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#64748b',
+    color: colors.textSecondary,
     marginBottom: 2,
   },
   todayPunchVal: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#e2e8f0',
+    color: colors.textPrimary,
   },
   todayPunchActive: {
-    color: '#38bdf8',
+    color: colors.primary,
     fontStyle: 'italic',
   },
   todayBadgeRow: {
@@ -2086,8 +2670,10 @@ const styles = StyleSheet.create({
   todayBadgeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#10b981',
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    color: colors.successText,
+    backgroundColor: colors.successBg,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -2097,13 +2683,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   todayEmptyTitle: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 13,
     fontWeight: '600',
     marginBottom: 4,
   },
   todayEmptySub: {
-    color: '#64748b',
+    color: colors.textMuted,
     fontSize: 11,
     textAlign: 'center',
     lineHeight: 16,
@@ -2112,13 +2698,18 @@ const styles = StyleSheet.create({
   // Bottom Navigation Bar
   bottomTabBar: {
     flexDirection: 'row',
-    backgroundColor: '#0c1222',
+    backgroundColor: colors.surface,
     borderTopWidth: 1,
-    borderTopColor: '#1e293b',
+    borderTopColor: colors.border,
     paddingVertical: 6,
     paddingHorizontal: 12,
     justifyContent: 'space-around',
     alignItems: 'center',
+    shadowColor: colors.shadowColor,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 8,
   },
   bottomTabItem: {
     alignItems: 'center',
@@ -2127,7 +2718,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   bottomTabItemActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    backgroundColor: colors.primaryLight,
   },
   bottomTabIcon: {
     fontSize: 18,
@@ -2135,11 +2726,11 @@ const styles = StyleSheet.create({
   },
   bottomTabText: {
     fontSize: 11,
-    color: '#64748b',
+    color: colors.textSecondary,
     fontWeight: '600',
   },
   bottomTabTextActive: {
-    color: '#38bdf8',
+    color: colors.primary,
     fontWeight: '700',
   },
 });

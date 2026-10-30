@@ -128,8 +128,8 @@ def validate_image_security(
             f"Image payload size ({len(image_bytes)} bytes) exceeds maximum permitted limit ({max_bytes} bytes)."
         )
 
-    # Restrict PIL maximum pixels to prevent decompression bombs (DoS)
-    Image.MAX_IMAGE_PIXELS = 10_000_000
+    # Restrict PIL maximum pixels to prevent decompression bombs (DoS), allowing high-res phone cameras
+    Image.MAX_IMAGE_PIXELS = 100_000_000
 
     try:
         with Image.open(io.BytesIO(image_bytes)) as img:
@@ -139,8 +139,8 @@ def validate_image_security(
             width, height = img.size
             if width <= 0 or height <= 0:
                 raise SecurityException("Invalid image dimensions.")
-            if width > 4096 or height > 4096:
-                raise SecurityException(f"Image dimensions ({width}x{height}) exceed maximum allowed 4096x4096.")
+            if width > 12000 or height > 12000:
+                raise SecurityException(f"Image dimensions ({width}x{height}) exceed maximum allowed 12000x12000.")
             return (img_format, width, height)
     except SecurityException:
         raise

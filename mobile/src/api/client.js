@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
 
-// Configured for local Wi-Fi LAN IP (10.115.36.66) for physical mobile device
-const LAN_API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.115.36.66:8000';
+// Configured for local Wi-Fi LAN IP (192.168.1.3) for physical mobile device
+const LAN_API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.3:8000';
 export const DEFAULT_API_BASE_URL = Platform.select({
   android: LAN_API_URL,
   ios: LAN_API_URL,

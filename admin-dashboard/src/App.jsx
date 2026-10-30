@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import Navbar from './components/Navbar';
+import Sidebar from './components/Sidebar';
+import TopBar from './components/TopBar';
 import AdminDashboard from './AdminDashboard';
 import EmployeesPage from './pages/EmployeesPage';
 import LeavesPage from './pages/LeavesPage';
@@ -15,6 +16,11 @@ function AdminWorkspaceLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
+
+  // Sidebar responsive states
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Determine active tab from URL path
   const getTabFromPath = (path) => {
@@ -82,30 +88,47 @@ function AdminWorkspaceLayout() {
   }, [loadData]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      <Navbar
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex font-sans transition-colors duration-300">
+      {/* Collapsible Left Sidebar */}
+      <Sidebar
         activeTab={activeTab}
         setActiveTab={handleTabChange}
-        onRefresh={loadData}
-        isRefreshing={isLoading}
+        isCollapsed={isCollapsed}
+        setIsCollapsed={setIsCollapsed}
+        mobileOpen={mobileOpen}
+        setMobileOpen={setMobileOpen}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'dashboard' && <AdminDashboard />}
-        {activeTab === 'employees' && (
-          <EmployeesPage employees={employees} onReload={loadData} />
-        )}
-        {activeTab === 'leaves' && (
-          <LeavesPage leaves={leaves} onReload={loadData} />
-        )}
-        {activeTab === 'payroll' && (
-          <PayrollPage payrolls={payrolls} onReload={loadData} />
-        )}
-      </main>
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+        {/* Top Header Bar */}
+        <TopBar
+          onMenuClick={() => setMobileOpen(true)}
+          onRefresh={loadData}
+          isRefreshing={isLoading}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+        />
 
-      <footer className="border-t border-slate-900 bg-slate-950 py-4 text-center text-xs text-slate-500">
-        AI Smart Attendance & Workforce Management System • College Minor Project BCA (Bachelor of Computer Applications)
-      </footer>
+        {/* View Port Content */}
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {activeTab === 'dashboard' && <AdminDashboard />}
+          {activeTab === 'employees' && (
+            <EmployeesPage employees={employees} onReload={loadData} />
+          )}
+          {activeTab === 'leaves' && (
+            <LeavesPage leaves={leaves} onReload={loadData} />
+          )}
+          {activeTab === 'payroll' && (
+            <PayrollPage payrolls={payrolls} onReload={loadData} />
+          )}
+        </main>
+
+        {/* Footer */}
+        <footer className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-4 text-center text-xs text-slate-500 dark:text-slate-400 shadow-xs transition-colors duration-300">
+          AI Smart Attendance & Workforce Management System • College Minor Project BCA (Bachelor of Computer Applications)
+        </footer>
+      </div>
     </div>
   );
 }

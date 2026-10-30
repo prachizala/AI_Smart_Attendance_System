@@ -9,10 +9,13 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { api } from '../api/client';
 
 export default function FaceRegisterScreen({ navigation }) {
   const { user, updateUserProfile } = useAuth();
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [permission, requestPermission] = useCameraPermissions();
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
@@ -55,7 +58,7 @@ export default function FaceRegisterScreen({ navigation }) {
         <Text style={styles.subtitle}>
           We need access to your camera to capture your reference biometric photo.
         </Text>
-        <TouchableOpacity style={styles.btn} onPress={requestPermission}>
+        <TouchableOpacity style={styles.btn} onPress={requestPermission} activeOpacity={0.8}>
           <Text style={styles.btnText}>Grant Camera Permission</Text>
         </TouchableOpacity>
       </View>
@@ -87,9 +90,10 @@ export default function FaceRegisterScreen({ navigation }) {
           style={[styles.captureBtn, isProcessing && styles.btnDisabled]}
           onPress={captureAndRegister}
           disabled={isProcessing}
+          activeOpacity={0.8}
         >
           {isProcessing ? (
-            <ActivityIndicator color="#ffffff" />
+            <ActivityIndicator color={colors.textInverse} />
           ) : (
             <Text style={styles.captureBtnText}>Capture & Save 128-D Embedding</Text>
           )}
@@ -99,10 +103,11 @@ export default function FaceRegisterScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) =>
+  StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#090d16',
+    backgroundColor: colors.background,
     padding: 20,
     justifyContent: 'space-between',
   },
@@ -119,34 +124,35 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#ffffff',
+    color: colors.textPrimary,
   },
   subtitle: {
     fontSize: 13,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     lineHeight: 18,
   },
   errorBox: {
-    backgroundColor: '#ef444420',
+    backgroundColor: colors.dangerBg,
     borderWidth: 1,
-    borderColor: '#ef444450',
+    borderColor: colors.dangerBorder,
     padding: 12,
-    borderRadius: 10,
+    borderRadius: 12,
   },
   errorText: {
-    color: '#f87171',
+    color: colors.dangerText,
     fontSize: 13,
   },
   cameraBox: {
     flex: 1,
     marginVertical: 20,
-    borderRadius: 20,
+    borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 2,
-    borderColor: '#38bdf8',
+    borderColor: colors.primary,
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#000000',
   },
   camera: {
     ...StyleSheet.absoluteFillObject,
@@ -157,35 +163,41 @@ const styles = StyleSheet.create({
     width: 220,
     height: 300,
     borderRadius: 110,
-    borderWidth: 2,
-    borderColor: '#38bdf880',
+    borderWidth: 2.5,
+    borderColor: colors.primary,
     borderStyle: 'dashed',
+    backgroundColor: 'rgba(79, 70, 229, 0.08)',
   },
   footer: {
     paddingBottom: 20,
   },
   btn: {
-    backgroundColor: '#0284c7',
+    backgroundColor: colors.primary,
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingVertical: 14,
+    borderRadius: 12,
     marginTop: 10,
   },
   btnText: {
-    color: '#ffffff',
+    color: colors.textInverse,
     fontWeight: '700',
   },
   captureBtn: {
-    backgroundColor: '#0284c7',
+    backgroundColor: colors.primary,
     paddingVertical: 16,
     borderRadius: 14,
     alignItems: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   btnDisabled: {
     opacity: 0.6,
   },
   captureBtnText: {
-    color: '#ffffff',
+    color: colors.textInverse,
     fontSize: 15,
     fontWeight: '700',
   },

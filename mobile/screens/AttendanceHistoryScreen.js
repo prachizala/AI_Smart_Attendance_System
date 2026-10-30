@@ -10,6 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../src/context/ThemeContext';
 
 /**
  * AttendanceHistoryScreen - Displays real-time chronological attendance logs
@@ -19,10 +20,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function AttendanceHistoryScreen({
   user,
   token,
-  serverUrl = process.env.EXPO_PUBLIC_API_URL || 'http://10.115.36.66:8000',
+  serverUrl = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.3:8000',
   onBack,
   navigation,
 }) {
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   const [records, setRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -30,7 +34,7 @@ export default function AttendanceHistoryScreen({
 
   // Authenticated employee identification
   const employeeId = user?.employee_id || user?.id || 'EMP001';
-  const cleanServerUrl = (serverUrl || process.env.EXPO_PUBLIC_API_URL || 'http://10.115.36.66:8000').replace(/\/+$/, '');
+  const cleanServerUrl = (serverUrl || process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.3:8000').replace(/\/+$/, '');
 
   const fetchAttendanceHistory = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -185,7 +189,7 @@ export default function AttendanceHistoryScreen({
               styles.statusBadge,
               isPresent && styles.badgeSuccess,
               isLate && styles.badgeWarning,
-              isHalfDay && styles.badgeOrange,
+              isHalfDay && styles.badgeWarning,
               !isPresent && !isLate && !isHalfDay && styles.badgeDanger,
             ]}
           >
@@ -194,7 +198,7 @@ export default function AttendanceHistoryScreen({
                 styles.statusBadgeText,
                 isPresent && styles.textSuccess,
                 isLate && styles.textWarning,
-                isHalfDay && styles.textOrange,
+                isHalfDay && styles.textWarning,
                 !isPresent && !isLate && !isHalfDay && styles.textDanger,
               ]}
             >
@@ -229,8 +233,8 @@ export default function AttendanceHistoryScreen({
               </View>
             )}
             {hasEarlyExit && (
-              <View style={styles.metricPillOrange}>
-                <Text style={styles.metricPillOrangeText}>🚪 Early Exit</Text>
+              <View style={styles.metricPillWarning}>
+                <Text style={styles.metricPillWarningText}>🚪 Early Exit</Text>
               </View>
             )}
             {hasOvertime && (
@@ -296,7 +300,7 @@ export default function AttendanceHistoryScreen({
     <SafeAreaView style={styles.container}>
       {/* Top Header Bar */}
       <View style={styles.headerBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
+        <TouchableOpacity style={styles.backBtn} onPress={handleBack} activeOpacity={0.7}>
           <Text style={styles.backBtnText}>‹ Dashboard</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Attendance History</Text>
@@ -304,6 +308,7 @@ export default function AttendanceHistoryScreen({
           style={styles.refreshBtn}
           onPress={() => fetchAttendanceHistory(true)}
           disabled={isLoading || isRefreshing}
+          activeOpacity={0.7}
         >
           <Text style={styles.refreshBtnText}>
             {isRefreshing ? '...' : '↻'}
@@ -354,7 +359,7 @@ export default function AttendanceHistoryScreen({
       {/* Main Content Area */}
       {isLoading && !isRefreshing ? (
         <View style={styles.centerBox}>
-          <ActivityIndicator size="large" color="#38bdf8" />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Fetching attendance history from backend...</Text>
           <Text style={styles.subLoadingText}>Target: GET /attendance/history/{employeeId}</Text>
         </View>
@@ -368,6 +373,7 @@ export default function AttendanceHistoryScreen({
           <TouchableOpacity
             style={styles.retryBtn}
             onPress={() => fetchAttendanceHistory(false)}
+            activeOpacity={0.8}
           >
             <Text style={styles.retryBtnText}>Retry Connection</Text>
           </TouchableOpacity>
@@ -385,6 +391,7 @@ export default function AttendanceHistoryScreen({
           <TouchableOpacity
             style={styles.actionBtn}
             onPress={() => fetchAttendanceHistory(true)}
+            activeOpacity={0.8}
           >
             <Text style={styles.actionBtnText}>Refresh Logs</Text>
           </TouchableOpacity>
@@ -399,8 +406,8 @@ export default function AttendanceHistoryScreen({
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={() => fetchAttendanceHistory(true)}
-              tintColor="#38bdf8"
-              colors={['#38bdf8']}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
             />
           }
         />
@@ -409,10 +416,11 @@ export default function AttendanceHistoryScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors, isDark) =>
+  StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#090d16',
+    backgroundColor: colors.background,
   },
   headerBar: {
     flexDirection: 'row',
@@ -421,33 +429,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
-    backgroundColor: '#0c1222',
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
   },
   backBtn: {
     paddingVertical: 6,
     paddingHorizontal: 10,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surfaceSubtle,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   backBtnText: {
-    color: '#38bdf8',
+    color: colors.primary,
     fontSize: 14,
     fontWeight: '700',
   },
   headerTitle: {
-    color: '#f8fafc',
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: '800',
   },
   refreshBtn: {
     paddingVertical: 6,
     paddingHorizontal: 12,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surfaceSubtle,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   refreshBtnText: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 18,
     fontWeight: 'bold',
   },
@@ -455,52 +467,57 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.surface,
     paddingHorizontal: 18,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
+    borderBottomColor: colors.border,
   },
   employeeName: {
-    color: '#f8fafc',
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: '700',
   },
   employeeCode: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 12,
     marginTop: 2,
   },
   highlight: {
-    color: '#38bdf8',
+    color: colors.primary,
     fontWeight: '700',
   },
   roleTag: {
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    backgroundColor: colors.primaryLight,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.3)',
+    borderColor: colors.primaryBorder,
   },
   roleTagText: {
-    color: '#38bdf8',
+    color: colors.primary,
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
   statsBar: {
     flexDirection: 'row',
-    backgroundColor: '#111827',
+    backgroundColor: colors.surface,
     marginHorizontal: 16,
     marginTop: 14,
     marginBottom: 6,
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: 14,
+    paddingVertical: 14,
     borderWidth: 1,
-    borderColor: '#1f2937',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'space-around',
+    shadowColor: colors.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   statItem: {
     alignItems: 'center',
@@ -509,39 +526,39 @@ const styles = StyleSheet.create({
   statVal: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#f8fafc',
+    color: colors.textPrimary,
   },
   statLabel: {
     fontSize: 11,
-    color: '#64748b',
+    color: colors.textSecondary,
     marginTop: 2,
     fontWeight: '600',
   },
   statDivider: {
     width: 1,
     height: 24,
-    backgroundColor: '#1f2937',
+    backgroundColor: colors.border,
   },
   listContainer: {
     padding: 16,
-    paddingBottom: 30,
+    paddingBottom: 110,
   },
   card: {
-    backgroundColor: '#111827',
-    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#1e293b',
+    borderColor: colors.border,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: colors.shadowColor,
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
       },
       android: {
-        elevation: 3,
+        elevation: 2,
       },
     }),
   },
@@ -552,12 +569,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   dateTitle: {
-    color: '#f8fafc',
+    color: colors.textPrimary,
     fontSize: 15,
     fontWeight: '700',
   },
   recordIdText: {
-    color: '#64748b',
+    color: colors.textSecondary,
     fontSize: 11,
     marginTop: 2,
   },
@@ -565,6 +582,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
+    borderWidth: 1,
   },
   statusBadgeText: {
     fontSize: 11,
@@ -572,52 +590,43 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   badgeSuccess: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
+    backgroundColor: colors.successBg,
+    borderColor: colors.successBorder,
   },
   badgeWarning: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-  },
-  badgeOrange: {
-    backgroundColor: 'rgba(249, 115, 22, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(249, 115, 22, 0.3)',
+    backgroundColor: colors.warningBg,
+    borderColor: colors.warningBorder,
   },
   badgeDanger: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    backgroundColor: colors.dangerBg,
+    borderColor: colors.dangerBorder,
   },
   textSuccess: {
-    color: '#10b981',
+    color: colors.successText,
   },
   textWarning: {
-    color: '#f59e0b',
-  },
-  textOrange: {
-    color: '#f97316',
+    color: colors.warningText,
   },
   textDanger: {
-    color: '#ef4444',
+    color: colors.dangerText,
   },
   textInfo: {
-    color: '#38bdf8',
+    color: colors.infoText,
   },
   textMuted: {
-    color: '#64748b',
+    color: colors.textSecondary,
   },
   timestampsRow: {
     flexDirection: 'row',
-    backgroundColor: '#0c1222',
-    borderRadius: 10,
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: 12,
     paddingVertical: 10,
     paddingHorizontal: 14,
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   timeBlock: {
     flex: 1,
@@ -626,22 +635,22 @@ const styles = StyleSheet.create({
   timeDivider: {
     width: 1,
     height: 28,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.border,
   },
   timeLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#64748b',
+    color: colors.textSecondary,
     letterSpacing: 0.5,
     marginBottom: 3,
   },
   timeValue: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#e2e8f0',
+    color: colors.textPrimary,
   },
   timePending: {
-    color: '#f59e0b',
+    color: colors.warningText,
     fontStyle: 'italic',
     fontSize: 13,
   },
@@ -652,41 +661,28 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   metricPillWarning: {
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    backgroundColor: colors.warningBg,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.25)',
+    borderColor: colors.warningBorder,
   },
   metricPillWarningText: {
-    color: '#fbbf24',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  metricPillOrange: {
-    backgroundColor: 'rgba(249, 115, 22, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(249, 115, 22, 0.25)',
-  },
-  metricPillOrangeText: {
-    color: '#fb923c',
+    color: colors.warningText,
     fontSize: 11,
     fontWeight: '700',
   },
   metricPillBlue: {
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    backgroundColor: colors.infoBg,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.25)',
+    borderColor: colors.infoBorder,
   },
   metricPillBlueText: {
-    color: '#38bdf8',
+    color: colors.infoText,
     fontSize: 11,
     fontWeight: '700',
   },
@@ -701,13 +697,19 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   verifyTagSuccess: {
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    backgroundColor: colors.successBg,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
   },
   verifyTagInfo: {
-    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    backgroundColor: colors.infoBg,
+    borderWidth: 1,
+    borderColor: colors.infoBorder,
   },
   verifyTagMuted: {
-    backgroundColor: 'rgba(100, 116, 139, 0.1)',
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   verifyTagText: {
     fontSize: 11,
@@ -717,11 +719,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#1e293b',
+    borderTopColor: colors.border,
   },
   geoText: {
-    color: '#64748b',
-    fontSize: 10,
+    color: colors.textSecondary,
+    fontSize: 11,
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
   },
   centerBox: {
@@ -731,14 +733,14 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   loadingText: {
-    color: '#f8fafc',
+    color: colors.textPrimary,
     fontSize: 15,
     fontWeight: '700',
     marginTop: 16,
     textAlign: 'center',
   },
   subLoadingText: {
-    color: '#64748b',
+    color: colors.textSecondary,
     fontSize: 12,
     marginTop: 6,
     textAlign: 'center',
@@ -748,39 +750,44 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    backgroundColor: colors.dangerBg,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#ef4444',
+    borderColor: colors.danger,
     marginBottom: 16,
   },
   errorIconText: {
-    color: '#ef4444',
+    color: colors.danger,
     fontSize: 28,
     fontWeight: '900',
   },
   errorTitle: {
-    color: '#f8fafc',
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: '800',
     marginBottom: 8,
   },
   errorMessage: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 20,
   },
   retryBtn: {
-    backgroundColor: '#38bdf8',
+    backgroundColor: colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: 12,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
   },
   retryBtnText: {
-    color: '#090d16',
+    color: colors.textInverse,
     fontSize: 14,
     fontWeight: '800',
   },
@@ -788,7 +795,9 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -797,28 +806,28 @@ const styles = StyleSheet.create({
     fontSize: 28,
   },
   emptyTitle: {
-    color: '#f8fafc',
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: '800',
     marginBottom: 8,
   },
   emptySubtitle: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 20,
   },
   actionBtn: {
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#38bdf8',
+    borderColor: colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
   },
   actionBtnText: {
-    color: '#38bdf8',
+    color: colors.primary,
     fontSize: 13,
     fontWeight: '700',
   },

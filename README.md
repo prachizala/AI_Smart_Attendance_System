@@ -2,6 +2,10 @@
 
 An enterprise-grade, dual-factor biometric and geolocation attendance management platform engineered for academic research, College Minor Project BCA (Bachelor of Computer Applications), and workforce operations.
 
+> [!TIP]
+> **New to this project or setting it up for the first time?**
+> Please refer to the step-by-step setup guide: **[`README_SETUP.md`](file:///c:/Users/prachi/OneDrive/Desktop/Smart_Attendance/README_SETUP.md)** for quick installation of Python dependencies, npm packages, IP configuration, and running the project.
+
 ---
 
 ## 1. Architectural Blueprint & Domain Separation

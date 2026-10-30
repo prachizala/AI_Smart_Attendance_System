@@ -41,16 +41,27 @@ def decode_image_to_rgb(image_input: Union[bytes, str, io.BytesIO, np.ndarray]) 
     else:
         raise TypeError("Unsupported image input type. Expected Base64 string, bytes, or NumPy array.")
 
-    # 2. Enforce upload size constraint (max 5MB)
-    if len(image_bytes) > 5 * 1024 * 1024:
-        raise ValueError("Image upload size exceeds the maximum allowed limit of 5MB.")
+    # 2. Enforce upload size constraint (max 15MB for high-res mobile selfies)
+    if len(image_bytes) > 15 * 1024 * 1024:
+        raise ValueError("Image upload size exceeds the maximum allowed limit of 15MB.")
 
     # 3. Convert raw bytes to PIL Image, protect against decompression bombs, and convert to RGB
-    Image.MAX_IMAGE_PIXELS = 10_000_000
+    Image.MAX_IMAGE_PIXELS = 100_000_000
     try:
         with Image.open(io.BytesIO(image_bytes)) as pil_img:
-            if pil_img.width > 4096 or pil_img.height > 4096:
-                raise ValueError("Image dimensions exceed maximum supported 4096x4096 pixels.")
+            # Auto-orient using EXIF orientation tag if present
+            try:
+                from PIL import ImageOps
+                pil_img = ImageOps.exif_transpose(pil_img)
+            except Exception:
+                pass
+
+            # Automatically resize high-resolution mobile photos down to max 1280px
+            # This preserves face details, prevents memory exhaustion, and speeds up dlib/OpenCV detection
+            if pil_img.width > 1280 or pil_img.height > 1280:
+                resample_filter = getattr(getattr(Image, 'Resampling', Image), 'LANCZOS', Image.LANCZOS)
+                pil_img.thumbnail((1280, 1280), resample_filter)
+
             rgb_img = pil_img.convert("RGB")
             rgb_array = np.array(rgb_img)
             return rgb_array

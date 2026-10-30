@@ -12,7 +12,9 @@ import {
 } from 'react-native';
 import * as Location from 'expo-location';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Sun, Moon } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { api } from '../api/client';
 
 // Target Headquarters: SBS Shanti Business School, Shela, Ahmedabad, Gujarat 380058
@@ -22,6 +24,9 @@ const GEOFENCE_RADIUS = 100.0; // Allowed radius in meters
 
 export default function HomeScreen({ navigation }) {
   const { user, logout, token } = useAuth();
+  const { colors, isDark, toggleTheme } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   // Location & Geofence State
@@ -339,9 +344,19 @@ export default function HomeScreen({ navigation }) {
           </View>
           <Text style={styles.empName}>{user?.full_name || 'Workforce Member'}</Text>
         </View>
-        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
-          <Text style={styles.logoutText}>Sign Out</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TouchableOpacity
+            style={styles.themeToggleBtn}
+            onPress={toggleTheme}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            {isDark ? <Sun size={18} color="#FBBF24" /> : <Moon size={18} color={colors.primary} />}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+            <Text style={styles.logoutText}>Sign Out</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Dynamic Status Alert Banner */}
@@ -638,11 +653,22 @@ export default function HomeScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#090d16',
-  },
+const createStyles = (colors, isDark) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    themeToggleBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
   scroll: {
     padding: 18,
     gap: 16,
@@ -652,9 +678,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderColor: '#1e293b',
+    borderBottomColor: colors.border,
     marginBottom: 4,
   },
   badgeRow: {
@@ -665,36 +691,38 @@ const styles = StyleSheet.create({
   empId: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#38bdf8',
+    color: colors.primary,
     letterSpacing: 0.5,
   },
   roleBadge: {
-    backgroundColor: '#0284c725',
-    paddingHorizontal: 6,
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#0284c740',
+    borderColor: colors.primaryBorder,
   },
   roleBadgeText: {
-    color: '#38bdf8',
+    color: colors.primary,
     fontSize: 9,
     fontWeight: '800',
   },
   empName: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#ffffff',
+    color: colors.textPrimary,
     marginTop: 2,
   },
   logoutBtn: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   logoutText: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -704,12 +732,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   bannerSuccess: {
-    backgroundColor: '#10b98115',
-    borderColor: '#10b98140',
+    backgroundColor: colors.successBg,
+    borderColor: colors.successBorder,
   },
   bannerError: {
-    backgroundColor: '#ef444415',
-    borderColor: '#ef444440',
+    backgroundColor: colors.dangerBg,
+    borderColor: colors.dangerBorder,
   },
   bannerText: {
     fontSize: 13,
@@ -717,17 +745,17 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   bannerTextSuccess: {
-    color: '#34d399',
+    color: colors.successText,
   },
   bannerTextError: {
-    color: '#f87171',
+    color: colors.dangerText,
   },
   demoCard: {
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.surfaceSubtle,
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#38bdf840',
+    borderColor: colors.border,
     gap: 10,
   },
   demoHeader: {
@@ -736,11 +764,11 @@ const styles = StyleSheet.create({
   demoTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#38bdf8',
+    color: colors.primary,
   },
   demoSubtitle: {
     fontSize: 11,
-    color: '#94a3b8',
+    color: colors.textSecondary,
   },
   demoBtnRow: {
     flexDirection: 'row',
@@ -748,32 +776,37 @@ const styles = StyleSheet.create({
   },
   demoModeBtn: {
     flex: 1,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     borderRadius: 8,
     paddingVertical: 8,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.border,
   },
   demoModeBtnActive: {
-    backgroundColor: '#0284c7',
-    borderColor: '#38bdf8',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   demoModeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#94a3b8',
+    color: colors.textSecondary,
   },
   demoModeTextActive: {
-    color: '#ffffff',
+    color: colors.textInverse,
   },
   card: {
-    backgroundColor: '#111827',
-    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 18,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#1f2937',
+    borderColor: colors.border,
     gap: 10,
+    shadowColor: colors.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -783,10 +816,10 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#e2e8f0',
+    color: colors.textPrimary,
   },
   refreshLink: {
-    color: '#38bdf8',
+    color: colors.primary,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -797,48 +830,54 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 6,
+    borderRadius: 8,
   },
   pillSuccess: {
-    backgroundColor: '#10b98125',
+    backgroundColor: colors.successBg,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
   },
   pillDanger: {
-    backgroundColor: '#ef444425',
+    backgroundColor: colors.dangerBg,
+    borderWidth: 1,
+    borderColor: colors.dangerBorder,
   },
   statusPillText: {
     fontSize: 11,
     fontWeight: '700',
   },
   textSuccess: {
-    color: '#34d399',
+    color: colors.successText,
   },
   textDanger: {
-    color: '#f87171',
+    color: colors.dangerText,
   },
   textWarning: {
-    color: '#fbbf24',
+    color: colors.warningText,
   },
   distanceText: {
-    color: '#cbd5e1',
+    color: colors.textSecondary,
     fontSize: 13,
   },
   highlight: {
     fontWeight: '700',
-    color: '#f8fafc',
+    color: colors.textPrimary,
   },
   coordsBox: {
-    backgroundColor: '#090d16',
-    borderRadius: 8,
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: 10,
     padding: 10,
     gap: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   coordsText: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 11,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   officeCoordsText: {
-    color: '#64748b',
+    color: colors.textMuted,
     fontSize: 10,
   },
   bioRow: {
@@ -849,30 +888,32 @@ const styles = StyleSheet.create({
   },
   bioSubtext: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     lineHeight: 16,
   },
   cameraCard: {
     backgroundColor: '#000000',
-    borderRadius: 16,
+    borderRadius: 18,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#38bdf880',
+    borderColor: colors.primary,
   },
   cameraHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     padding: 12,
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.surface,
     alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   cameraHeaderTitle: {
-    color: '#f8fafc',
+    color: colors.textPrimary,
     fontSize: 13,
     fontWeight: '700',
   },
   cameraFlipText: {
-    color: '#38bdf8',
+    color: colors.primary,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -905,9 +946,9 @@ const styles = StyleSheet.create({
     height: 270,
     borderRadius: 105,
     borderWidth: 2.5,
-    borderColor: '#38bdf8',
+    borderColor: colors.primary,
     borderStyle: 'dashed',
-    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    backgroundColor: 'rgba(79, 70, 229, 0.08)',
   },
   reticleInstruction: {
     color: '#ffffff',
@@ -931,25 +972,27 @@ const styles = StyleSheet.create({
   },
   cancelCameraBtn: {
     flex: 1,
-    backgroundColor: '#334155',
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: 'center',
   },
   cancelText: {
-    color: '#ffffff',
+    color: colors.textPrimary,
     fontWeight: '700',
     fontSize: 14,
   },
   captureBtn: {
     flex: 2,
-    backgroundColor: '#0284c7',
+    backgroundColor: colors.primary,
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: 'center',
   },
   captureText: {
-    color: '#ffffff',
+    color: colors.textInverse,
     fontWeight: '800',
     fontSize: 14,
   },
@@ -958,11 +1001,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 10,
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.surfaceSubtle,
     gap: 8,
   },
   processingText: {
-    color: '#38bdf8',
+    color: colors.primary,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -970,12 +1013,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   primaryBtn: {
-    backgroundColor: '#0284c7',
+    backgroundColor: colors.primary,
     borderRadius: 16,
     paddingVertical: 16,
     alignItems: 'center',
-    shadowColor: '#0284c7',
-    shadowOpacity: 0.3,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 4,
   },
@@ -983,27 +1027,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   btnText: {
-    color: '#ffffff',
+    color: colors.textInverse,
     fontSize: 17,
     fontWeight: '800',
     letterSpacing: 0.3,
   },
   btnSubtext: {
-    color: '#bae6fd',
+    color: colors.primaryLight,
     fontSize: 11,
     fontWeight: '500',
     marginTop: 2,
   },
   secondaryBtn: {
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.border,
   },
   secondaryBtnText: {
-    color: '#cbd5e1',
+    color: colors.textSecondary,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -1017,39 +1061,49 @@ const styles = StyleSheet.create({
   },
   navCard: {
     flex: 1,
-    backgroundColor: '#111827',
-    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#1f2937',
+    borderColor: colors.border,
+    shadowColor: colors.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
   },
   navCardTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#f8fafc',
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   navCardDesc: {
     fontSize: 11,
-    color: '#64748b',
+    color: colors.textSecondary,
     lineHeight: 14,
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: '#000000bb',
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
   modalCard: {
-    backgroundColor: '#111827',
-    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderRadius: 24,
     padding: 24,
     width: '100%',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#1f2937',
+    borderColor: colors.border,
     gap: 12,
+    shadowColor: colors.shadowColor,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 6,
   },
   modalIconRing: {
     width: 60,
@@ -1060,63 +1114,64 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   ringSuccess: {
-    borderColor: '#10b981',
-    backgroundColor: '#10b98120',
+    borderColor: colors.success,
+    backgroundColor: colors.successBg,
   },
   ringWarning: {
-    borderColor: '#f59e0b',
-    backgroundColor: '#f59e0b20',
+    borderColor: colors.warning,
+    backgroundColor: colors.warningBg,
   },
   ringDanger: {
-    borderColor: '#ef4444',
-    backgroundColor: '#ef444420',
+    borderColor: colors.danger,
+    backgroundColor: colors.dangerBg,
   },
   ringInfo: {
-    borderColor: '#38bdf8',
-    backgroundColor: '#38bdf820',
+    borderColor: colors.info,
+    backgroundColor: colors.infoBg,
   },
   modalIconText: {
-    color: '#ffffff',
     fontSize: 28,
     fontWeight: '800',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#f8fafc',
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   modalMessage: {
     fontSize: 13,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
   },
   modalDetailsBox: {
-    backgroundColor: '#090d16',
-    borderRadius: 10,
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: 12,
     padding: 12,
     width: '100%',
     gap: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   detailKey: {
-    color: '#64748b',
+    color: colors.textSecondary,
     fontSize: 11,
     fontWeight: '600',
   },
   detailVal: {
-    color: '#e2e8f0',
+    color: colors.textPrimary,
     fontSize: 11,
     fontWeight: '700',
     textAlign: 'right',
   },
   modalDismissBtn: {
-    backgroundColor: '#0284c7',
-    borderRadius: 12,
+    backgroundColor: colors.primary,
+    borderRadius: 14,
     paddingVertical: 12,
     paddingHorizontal: 28,
     width: '100%',
@@ -1124,7 +1179,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   modalDismissText: {
-    color: '#ffffff',
+    color: colors.textInverse,
     fontWeight: '700',
     fontSize: 14,
   },
@@ -1133,13 +1188,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#1e293b',
+    borderTopColor: colors.border,
     marginTop: 20,
     marginBottom: 10,
   },
   homeFooterText: {
     fontSize: 11,
-    color: '#64748b',
+    color: colors.textMuted,
     textAlign: 'center',
     fontWeight: '500',
   },

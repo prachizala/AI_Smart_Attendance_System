@@ -144,6 +144,10 @@ The attendance verification protocol mandates a strict **Dual-Factor Gate**:
 - Interactive visual map in the Admin Dashboard with animated radar pulse sweep and 100m geofence perimeter circle.
 - Plots verified employee punch locations with distance in meters from the office center (SBS Campus, Ahmedabad) and interactive detail popups.
 
+### ⏱️ Live Workday Shift Progress & Overtime Tracker
+- Visual progress bar on the mobile dashboard tracking active shift completion against the 8-hour workday standard.
+- Real-time hours and minutes counter with dynamic progress percentage and automatic overtime detection (`+Xh Ym`).
+
 ### 🔒 Modern UI & Security Components
 - **Password Visibility Toggle**: Custom `PasswordInput` with eye icon across web and mobile.
 - **User-Friendly Error Handling**: Instant popup dialogs and banners for invalid credentials or geofence breaches instead of infinite loading spinners.

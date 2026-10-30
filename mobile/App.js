@@ -485,6 +485,20 @@ function CheckInDashboard({
     fetchTodayStatus();
   }, [user?.employee_id, user?.id]);
 
+  const calculateShiftStats = (record) => {
+    if (!record?.check_in) return null;
+    const checkInDate = new Date(record.check_in);
+    const endDate = record.check_out ? new Date(record.check_out) : new Date();
+    const diffMs = Math.max(0, endDate - checkInDate);
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const hours = Math.floor(diffMinutes / 60);
+    const minutes = diffMinutes % 60;
+    const standardShiftMinutes = 8 * 60;
+    const progressPercent = Math.min(100, Math.round((diffMinutes / standardShiftMinutes) * 100));
+    const isOvertime = diffMinutes > standardShiftMinutes;
+    return { hours, minutes, progressPercent, isOvertime };
+  };
+
   // Camera & Check-In Processing State
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraFacing, setCameraFacing] = useState('front');
@@ -1235,6 +1249,38 @@ function CheckInDashboard({
                 </Text>
               </View>
             </View>
+
+            {/* Live Workday Shift Progress Bar */}
+            {(() => {
+              const stats = calculateShiftStats(todayRecord);
+              if (!stats) return null;
+              return (
+                <View style={styles.shiftProgressContainer}>
+                  <View style={styles.shiftProgressHeader}>
+                    <Text style={styles.shiftProgressLabel}>
+                      ⏱️ {t('shiftProgress')}
+                    </Text>
+                    <Text style={styles.shiftProgressValue}>
+                      {stats.hours}h {stats.minutes}m / {t('shiftStandard')} ({stats.progressPercent}%)
+                    </Text>
+                  </View>
+                  <View style={styles.progressBarTrack}>
+                    <View
+                      style={[
+                        styles.progressBarFill,
+                        { width: `${stats.progressPercent}%` },
+                        stats.isOvertime && styles.progressBarFillOvertime,
+                      ]}
+                    />
+                  </View>
+                  {stats.isOvertime && (
+                    <Text style={styles.overtimeNotice}>
+                      🔥 {t('overtimeActive')}: +{stats.hours - 8}h {stats.minutes}m
+                    </Text>
+                  )}
+                </View>
+              );
+            })()}
           </View>
         ) : (
           <View style={styles.todayEmptyBox}>
@@ -3194,6 +3240,49 @@ const createStyles = (colors, isDark) =>
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
+  },
+  shiftProgressContainer: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  shiftProgressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  shiftProgressLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    letterSpacing: 0.2,
+  },
+  shiftProgressValue: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  progressBarTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+  },
+  progressBarFillOvertime: {
+    backgroundColor: '#10b981',
+  },
+  overtimeNotice: {
+    marginTop: 6,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#10b981',
   },
   todayEmptyBox: {
     paddingVertical: 12,

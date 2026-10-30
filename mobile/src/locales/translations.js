@@ -131,6 +131,9 @@ export const translations = {
     syncNow: 'Sync Now',
     notifications: 'Notifications',
     noNotifications: 'No new notifications at this time',
+    aiAssistant: 'AI Assistant',
+    askAiAnything: 'Ask AI assistant anything...',
+    trustScore: 'Trust Score',
   },
 
   hi: {
@@ -262,6 +265,9 @@ export const translations = {
     syncNow: 'अभी सिंक करें',
     notifications: 'सूचनाएं',
     noNotifications: 'इस समय कोई नई सूचना नहीं है',
+    aiAssistant: 'एआई सहायक',
+    askAiAnything: 'मुझसे कुछ भी पूछें...',
+    trustScore: 'ट्रस्ट स्कोर',
   },
 
   gu: {
@@ -393,6 +399,9 @@ export const translations = {
     syncNow: 'હવે સિંક કરો',
     notifications: 'સૂચનાઓ',
     noNotifications: 'હાલમાં કોઈ નવી સૂચના નથી',
+    aiAssistant: 'એઆઈ સહાયક',
+    askAiAnything: 'મને કંઈપણ પૂછો...',
+    trustScore: 'ટ્રસ્ટ સ્કોર',
   },
 
   gu: {
@@ -524,6 +533,9 @@ export const translations = {
     syncNow: 'હવે સિંક કરો',
     notifications: 'સૂચનાઓ',
     noNotifications: 'હાલમાં કોઈ નવી સૂચના નથી',
+    aiAssistant: 'એઆઈ સહાયક',
+    askAiAnything: 'મને કંઈપણ પૂછો...',
+    trustScore: 'ટ્રસ્ટ સ્કોર',
   },
 };
 

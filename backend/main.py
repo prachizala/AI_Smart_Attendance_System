@@ -17,6 +17,21 @@ import models
 # Initialize SQLite database tables
 Base.metadata.create_all(bind=engine)
 
+# Auto-migrate SQLite schema for backward compatibility
+def _auto_migrate_sqlite():
+    try:
+        with engine.connect() as conn:
+            from sqlalchemy import text
+            try:
+                conn.execute(text("ALTER TABLE attendance ADD COLUMN verification_method VARCHAR(30) DEFAULT 'face'"))
+                conn.commit()
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+_auto_migrate_sqlite()
+
 # Security & App Configuration (Centralized auth module)
 from auth import (
     SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, pwd_context,
@@ -1012,6 +1027,45 @@ def get_user_payroll(
             pr.employee_name = p.user.full_name
         results.append(pr)
     return results
+
+
+# ==========================================
+# Domain 5: AI Attendance Assistant Chatbot
+# ==========================================
+class ChatbotPayload(BaseModel):
+    user_id: int
+    message: str = Field(..., min_length=1, max_length=1000)
+    language: Optional[str] = "en"
+
+
+class ChatbotResponse(BaseModel):
+    reply: str
+    chips: List[str] = []
+
+
+@app.post("/api/chatbot/query", response_model=ChatbotResponse, tags=["AI Assistant"])
+@app.post("/chatbot/query", response_model=ChatbotResponse, tags=["AI Assistant"])
+def chatbot_query(
+    payload: ChatbotPayload,
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Multilingual AI Attendance & HR Assistant Chatbot:
+    Answers attendance, shift timings, leave balances, trust scores, and troubleshooting queries.
+    """
+    user = db.query(models.User).filter(models.User.id == payload.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    from services.chatbot_service import process_chat_query
+    result = process_chat_query(
+        db=db,
+        user=user,
+        message=payload.message,
+        language=payload.language or "en"
+    )
+    return ChatbotResponse(reply=result["reply"], chips=result.get("chips", []))
 
 
 if __name__ == "__main__":

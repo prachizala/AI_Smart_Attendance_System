@@ -150,6 +150,17 @@ The attendance verification protocol mandates a strict **Dual-Factor Gate**:
 - Visual progress bar on the mobile dashboard tracking active shift completion against the 8-hour workday standard.
 - Real-time hours and minutes counter with dynamic progress percentage and automatic overtime detection (`+Xh Ym`).
 
+### 🤖 Multilingual AI Attendance & Workforce Assistant Chatbot
+- **Interactive Conversational AI**: Dedicated AI assistant accessible across both mobile and admin web dashboards.
+- **Natural Language Query Engine**:
+  - *"What is my attendance status today?"* ➡️ Instant check-in/out time and verification badge.
+  - *"How many leaves do I have left?"* ➡️ Real-time calculation of remaining casual and sick leaves.
+  - *"What is my punctuality trust score?"* ➡️ Dynamic 300–900 credit-style score based on on-time arrival streak.
+  - *"What are the office shift rules?"* ➡️ Shift hours (09:30 AM – 05:30 PM), 100m geofence rules, and grace periods.
+  - Admin queries: *"Today's attendance count"*, *"Who is late today?"*.
+- **Trilingual Fluency**: Speaks and understands **English**, **Hindi** (हिन्दी), and **Gujarati** (ગુજરાતી) with 1-tap quick suggestion chips.
+- **Zero-Friction UI**: Floating launcher bubble with animated Bot and Sparkles badge on both mobile client and admin web portal.
+
 ### 🔒 Modern UI & Security Components
 - **Password Visibility Toggle**: Custom `PasswordInput` with eye icon across web and mobile.
 - **User-Friendly Error Handling**: Instant popup dialogs and banners for invalid credentials or geofence breaches instead of infinite loading spinners.

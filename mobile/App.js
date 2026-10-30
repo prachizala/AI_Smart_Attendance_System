@@ -18,9 +18,10 @@ import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
-import { Sun, Moon, MapPin, Clock, Calendar, Sparkles, CheckCircle2, XCircle, AlertCircle, Camera, X, RotateCcw, ScanFace, Fingerprint, Check, Bell, Image as ImageIcon } from 'lucide-react-native';
+import { Sun, Moon, MapPin, Clock, Calendar, Sparkles, CheckCircle2, XCircle, AlertCircle, Camera, X, RotateCcw, ScanFace, Fingerprint, Check, Bell, Image as ImageIcon, Bot } from 'lucide-react-native';
 import AttendanceHistoryScreen from './screens/AttendanceHistoryScreen';
 import LeaveScreen from './src/screens/LeaveScreen';
+import ChatbotModal from './src/components/ChatbotModal';
 import { saveSecureToken, getSecureToken, deleteSecureToken } from './src/utils/secureStorage';
 import { checkBiometricSupport, authenticateWithBiometrics, saveBiometricCredentials, getBiometricCredentials } from './src/utils/biometrics';
 import { queueOfflinePunch, getOfflinePunches, syncOfflinePunches } from './src/utils/offlineSync';
@@ -422,6 +423,7 @@ function CheckInDashboard({
   onUpdateUser,
   onNavigateToHistory,
   onNavigateToLeave,
+  onOpenChatbot,
 }) {
   const { colors, isDark, toggleTheme } = useTheme();
   const { t } = useLanguage();
@@ -1176,6 +1178,15 @@ function CheckInDashboard({
         <View style={styles.topBarRight}>
           <LanguageSelector compact={true} />
           <TouchableOpacity
+            style={styles.chatbotTopBtn}
+            onPress={onOpenChatbot}
+            activeOpacity={0.7}
+            accessibilityLabel="AI Assistant"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Bot size={20} color="#38bdf8" />
+          </TouchableOpacity>
+          <TouchableOpacity
             style={styles.notificationBtn}
             onPress={() => setNotificationsVisible(true)}
             activeOpacity={0.7}
@@ -1829,6 +1840,7 @@ function AppContent() {
   const [token, setToken] = useState(null);
   const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL);
   const [currentScreen, setCurrentScreen] = useState('dashboard'); // 'dashboard' | 'history' | 'leave'
+  const [chatbotVisible, setChatbotVisible] = useState(false);
 
   // Restore secure session on launch
   useEffect(() => {
@@ -1897,6 +1909,7 @@ function AppContent() {
                 onUpdateUser={(updatedFields) => setUser((prev) => (prev ? { ...prev, ...updatedFields } : null))}
                 onNavigateToHistory={() => setCurrentScreen('history')}
                 onNavigateToLeave={() => setCurrentScreen('leave')}
+                onOpenChatbot={() => setChatbotVisible(true)}
               />
             )}
 
@@ -1917,6 +1930,28 @@ function AppContent() {
                 onBack={() => setCurrentScreen('dashboard')}
               />
             )}
+
+            {/* Floating AI Assistant FAB Button */}
+            <TouchableOpacity
+              style={styles.chatbotFab}
+              onPress={() => setChatbotVisible(true)}
+              activeOpacity={0.8}
+              accessibilityLabel="AI Assistant"
+            >
+              <Bot size={24} color="#ffffff" />
+              <View style={styles.chatbotFabBadge}>
+                <Sparkles size={11} color="#f59e0b" />
+              </View>
+            </TouchableOpacity>
+
+            {/* AI Assistant Chatbot Modal */}
+            <ChatbotModal
+              visible={chatbotVisible}
+              onClose={() => setChatbotVisible(false)}
+              user={user}
+              token={token}
+              serverUrl={serverUrl}
+            />
 
             {/* Persistent Mobile Bottom Navigation Bar */}
             <View style={styles.bottomTabBar}>
@@ -2380,6 +2415,41 @@ const createStyles = (colors, isDark) =>
     alignItems: 'center',
     gap: 10,
     marginRight: 6,
+  },
+  chatbotTopBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: isDark ? 'rgba(56, 189, 248, 0.14)' : 'rgba(14, 165, 233, 0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatbotFab: {
+    position: 'absolute',
+    bottom: 84,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#0284c7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0284c7',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 8,
+    zIndex: 999,
+  },
+  chatbotFabBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    borderRadius: 8,
+    padding: 2,
   },
   notificationBtn: {
     width: 38,

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
+import ChatbotWidget from './components/ChatbotWidget';
 import AdminDashboard from './AdminDashboard';
 import EmployeesPage from './pages/EmployeesPage';
 import LeavesPage from './pages/LeavesPage';
@@ -135,6 +136,9 @@ function AdminWorkspaceLayout() {
         <footer className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-4 text-center text-xs text-slate-500 dark:text-slate-400 shadow-xs transition-colors duration-300">
           AI Smart Attendance & Workforce Management System • College Minor Project BCA (Bachelor of Computer Applications)
         </footer>
+
+        {/* AI Workforce Assistant Chatbot Widget */}
+        <ChatbotWidget adminUser={{ id: 1 }} />
       </div>
     </div>
   );

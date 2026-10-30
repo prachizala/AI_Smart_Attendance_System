@@ -452,6 +452,25 @@ def check_in(
     db.commit()
     db.refresh(record_to_return)
 
+    # Generate and save official Proof of Presence watermarked audit photo
+    try:
+        from services.face_service import add_attendance_watermark
+        proof_b64 = add_attendance_watermark(
+            payload.face_image_base64,
+            employee_id=user.employee_id,
+            latitude=payload.latitude,
+            longitude=payload.longitude,
+            timestamp_str=now.strftime("%Y-%m-%d %H:%M:%S UTC"),
+            location_name="SBS Campus"
+        )
+        proof_dir = os.path.join(os.path.dirname(__file__), "attendance_proofs")
+        os.makedirs(proof_dir, exist_ok=True)
+        proof_path = os.path.join(proof_dir, f"{today.strftime('%Y%m%d')}_{user.employee_id}.jpg")
+        with open(proof_path, "wb") as f:
+            f.write(base64.b64decode(proof_b64))
+    except Exception:
+        pass  # Non-blocking
+
     rec = AttendanceRecord.model_validate(record_to_return)
     rec.employee_id = user.employee_id
     rec.employee_name = user.full_name

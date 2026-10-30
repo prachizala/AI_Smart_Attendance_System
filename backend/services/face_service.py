@@ -5,7 +5,7 @@ import base64
 from typing import Union, List, Dict, Any, Optional
 import numpy as np
 import cv2
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 try:
     import face_recognition
@@ -51,7 +51,7 @@ def decode_image_to_rgb(image_input: Union[bytes, str, io.BytesIO, np.ndarray]) 
         with Image.open(io.BytesIO(image_bytes)) as pil_img:
             # Auto-orient using EXIF orientation tag if present
             try:
-                from PIL import ImageOps
+                from PIL import Image, ImageDraw, ImageFontOps
                 pil_img = ImageOps.exif_transpose(pil_img)
             except Exception:
                 pass
@@ -173,3 +173,49 @@ def serialize_embedding(embedding: List[float]) -> str:
 def deserialize_embedding(db_string: str) -> np.ndarray:
     """Helper to convert stored DB string back to a NumPy array."""
     return np.array(json.loads(db_string), dtype=np.float64)
+
+
+def add_attendance_watermark(
+    image_input: Union[bytes, str, io.BytesIO, np.ndarray],
+    employee_id: str,
+    latitude: float,
+    longitude: float,
+    timestamp_str: Optional[str] = None,
+    location_name: str = "SBS Campus"
+) -> str:
+    """
+    Burns an official Proof of Presence audit watermark onto the verified attendance selfie:
+    - Banner at bottom with Employee ID, Time, GPS Coordinates, and Verification Badge.
+    - Returns Base64 JPEG data URL.
+    """
+    import datetime
+    if not timestamp_str:
+        timestamp_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    rgb_array = decode_image_to_rgb(image_input)
+    pil_img = Image.fromarray(rgb_array)
+
+    w, h = pil_img.size
+    overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    # Watermark banner height: 14% of height, min 55px
+    bar_height = max(55, int(h * 0.14))
+    bar_top = h - bar_height
+
+    # Slate 900 semi-transparent background
+    draw.rectangle([(0, bar_top), (w, h)], fill=(15, 23, 42, 225))
+    # Emerald-500 indicator stripe on top
+    draw.rectangle([(0, bar_top), (w, bar_top + 3)], fill=(16, 185, 129, 255))
+
+    line1 = f"PROOF OF PRESENCE | ID: {employee_id} | {location_name}"
+    line2 = f"{timestamp_str} | GPS: {latitude:.5f}, {longitude:.5f} | VERIFIED ✓"
+
+    # Draw text cleanly with high contrast
+    draw.text((12, bar_top + 7), line1, fill=(241, 245, 249, 255))
+    draw.text((12, bar_top + 28), line2, fill=(148, 163, 184, 255))
+
+    final_img = Image.alpha_composite(pil_img.convert("RGBA"), overlay).convert("RGB")
+    out_buf = io.BytesIO()
+    final_img.save(out_buf, format="JPEG", quality=85)
+    return base64.b64encode(out_buf.getvalue()).decode("utf-8")

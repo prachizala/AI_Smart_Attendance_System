@@ -106,6 +106,14 @@ export const translations = {
     faceSavedTitle: 'Face Registered',
     faceSavedMsg: 'Your face has been registered successfully. You can now mark attendance.',
     acknowledge: 'OK',
+    biometricLogin: 'Sign in with Fingerprint',
+    biometricPrompt: 'Scan your fingerprint or face to sign in',
+    biometricsNotEnrolled: 'No fingerprint/biometrics enrolled on this device.',
+    biometricsFailed: 'Biometric verification failed. Please use password.',
+    livenessChallengeBlink: '👁️ Blink your eyes',
+    livenessChallengeSmile: '🙂 Smile to verify',
+    livenessPassed: 'Live Presence Verified ✓',
+    verifyingLiveness: 'Verifying live presence...',
   },
 
   hi: {
@@ -212,6 +220,14 @@ export const translations = {
     faceSavedTitle: 'चेहरा पंजीकृत हो गया',
     faceSavedMsg: 'आपका चेहरा पंजीकृत हो गया है। अब आप उपस्थिति दर्ज कर सकते हैं।',
     acknowledge: 'ठीक है',
+    biometricLogin: 'फिंगरप्रिंट से साइन इन करें',
+    biometricPrompt: 'साइन इन करने के लिए अपना फिंगरप्रिंट या चेहरा स्कैन करें',
+    biometricsNotEnrolled: 'इस डिवाइस पर कोई फिंगरप्रिंट/बायोमेट्रिक्स सेट नहीं है।',
+    biometricsFailed: 'बायोमेट्रिक सत्यापन विफल रहा। कृपया पासवर्ड का उपयोग करें।',
+    livenessChallengeBlink: '👁️ अपनी आँखें झपकाएं',
+    livenessChallengeSmile: '🙂 पुष्टि के लिए मुस्कुराएं',
+    livenessPassed: 'सजीव उपस्थिति सत्यापित ✓',
+    verifyingLiveness: 'सजीव उपस्थिति का सत्यापन हो रहा है...',
   },
 
   gu: {
@@ -318,6 +334,14 @@ export const translations = {
     faceSavedTitle: 'ચહેરો નોંધાઈ ગયો',
     faceSavedMsg: 'તમારો ચહેરો સફળતાપૂર્વક નોંધાઈ ગયો છે. હવે તમે હાજરી નોંધી શકો છો.',
     acknowledge: 'બરાબર',
+    biometricLogin: 'ફિંગરપ્રિન્ટથી સાઇન ઇન કરો',
+    biometricPrompt: 'સાઇન ઇન કરવા માટે તમારી ફિંગરપ્રિન્ટ અથવા ચહેરો સ્કેન કરો',
+    biometricsNotEnrolled: 'આ ડિવાઇસ પર કોઈ ફિંગરપ્રિન્ટ/બાયોમેટ્રિક્સ સેટ નથી.',
+    biometricsFailed: 'બાયોમેટ્રિક ચકાસણી નિષ્ફળ રહી. કૃપા કરીને પાસવર્ડનો ઉપયોગ કરો.',
+    livenessChallengeBlink: '👁️ તમારી આંખો પટપટાવો',
+    livenessChallengeSmile: '🙂 ચકાસણી માટે હસો',
+    livenessPassed: 'વાસ્તવિક હાજરી ચકાસાયેલ ✓',
+    verifyingLiveness: 'વાસ્તવિક હાજરી ચકાસાઈ રહી છે...',
   },
 
   gu: {
@@ -424,6 +448,14 @@ export const translations = {
     faceSavedTitle: 'ચહેરો નોંધાઈ ગયો',
     faceSavedMsg: 'તમારો ચહેરો સફળતાપૂર્વક નોંધાઈ ગયો છે. હવે તમે હાજરી નોંધી શકો છો.',
     acknowledge: 'બરાબર',
+    biometricLogin: 'ફિંગરપ્રિન્ટથી સાઇન ઇન કરો',
+    biometricPrompt: 'સાઇન ઇન કરવા માટે તમારી ફિંગરપ્રિન્ટ અથવા ચહેરો સ્કેન કરો',
+    biometricsNotEnrolled: 'આ ડિવાઇસ પર કોઈ ફિંગરપ્રિન્ટ/બાયોમેટ્રિક્સ સેટ નથી.',
+    biometricsFailed: 'બાયોમેટ્રિક ચકાસણી નિષ્ફળ રહી. કૃપા કરીને પાસવર્ડનો ઉપયોગ કરો.',
+    livenessChallengeBlink: '👁️ તમારી આંખો પટપટાવો',
+    livenessChallengeSmile: '🙂 ચકાસણી માટે હસો',
+    livenessPassed: 'વાસ્તવિક હાજરી ચકાસાયેલ ✓',
+    verifyingLiveness: 'વાસ્તવિક હાજરી ચકાસાઈ રહી છે...',
   },
 };
 

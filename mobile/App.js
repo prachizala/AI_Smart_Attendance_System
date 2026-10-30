@@ -17,10 +17,11 @@ import {
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Sun, Moon, MapPin, Clock, Calendar, Sparkles, CheckCircle2, XCircle, AlertCircle, Camera, X, RotateCcw, ScanFace } from 'lucide-react-native';
+import { Sun, Moon, MapPin, Clock, Calendar, Sparkles, CheckCircle2, XCircle, AlertCircle, Camera, X, RotateCcw, ScanFace, Fingerprint, Check } from 'lucide-react-native';
 import AttendanceHistoryScreen from './screens/AttendanceHistoryScreen';
 import LeaveScreen from './src/screens/LeaveScreen';
 import { saveSecureToken, getSecureToken, deleteSecureToken } from './src/utils/secureStorage';
+import { checkBiometricSupport, authenticateWithBiometrics, saveBiometricCredentials, getBiometricCredentials } from './src/utils/biometrics';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
 import LanguageSelector from './src/components/LanguageSelector';
@@ -68,6 +69,58 @@ function LoginScreen({ onLoginSuccess, serverUrl, setServerUrl }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [modalError, setModalError] = useState(null); // { title: string, message: string }
   const [showConfig, setShowConfig] = useState(false);
+  const [bioSupport, setBioSupport] = useState({ isAvailable: false, type: 'Fingerprint' });
+
+  useEffect(() => {
+    checkBiometricSupport().then((res) => {
+      setBioSupport(res);
+    });
+  }, []);
+
+  const handleBiometricLogin = async () => {
+    try {
+      const stored = await getBiometricCredentials();
+      if (!stored || !stored.identifier || !stored.password) {
+        Alert.alert(
+          t('biometricLogin'),
+          'Please sign in once with your Employee ID and password to link your fingerprint on this device.'
+        );
+        return;
+      }
+
+      const authRes = await authenticateWithBiometrics(t('biometricPrompt'));
+      if (!authRes.success) {
+        if (authRes.error && authRes.error !== 'user_cancel') {
+          Alert.alert(t('authFailedTitle'), t('biometricsFailed'));
+        }
+        return;
+      }
+
+      setIdentifier(stored.identifier);
+      setPassword(stored.password);
+      setIsLoading(true);
+
+      const cleanUrl = serverUrl.replace(/\/+$/, '');
+      const response = await fetch(`${cleanUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identifier: stored.identifier,
+          password: stored.password,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || t('biometricsFailed'));
+      }
+      onLoginSuccess(data.user, data.access_token);
+    } catch (err) {
+      Alert.alert(t('authFailedTitle'), err.message || t('biometricsFailed'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleLogin = async () => {
     setErrorMsg('');
@@ -148,6 +201,7 @@ function LoginScreen({ onLoginSuccess, serverUrl, setServerUrl }) {
         throw new Error(data.detail || 'Login failed. Invalid credentials.');
       }
 
+      saveBiometricCredentials(identifier.trim(), password.trim());
       onLoginSuccess(data.user, data.access_token);
     } catch (err) {
       let rawMsg = err.message || '';
@@ -329,6 +383,19 @@ function LoginScreen({ onLoginSuccess, serverUrl, setServerUrl }) {
               <Text style={styles.loginBtnText}>{t('signInToWorkstation')}</Text>
             )}
           </TouchableOpacity>
+
+          {/* Biometric Fingerprint / Touch ID Button */}
+          {bioSupport.isAvailable && (
+            <TouchableOpacity
+              style={styles.biometricBtn}
+              onPress={handleBiometricLogin}
+              disabled={isLoading}
+              activeOpacity={0.8}
+            >
+              <Fingerprint size={20} color={colors.primary} />
+              <Text style={styles.biometricBtnText}>{t('biometricLogin')}</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Subtle Bottom Footer */}
@@ -422,6 +489,25 @@ function CheckInDashboard({
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
   const cameraRef = useRef(null);
+
+  // Anti-Spoofing Liveness Verification State
+  const [livenessPassed, setLivenessPassed] = useState(false);
+  const [livenessMessage, setLivenessMessage] = useState('');
+
+  useEffect(() => {
+    let timer;
+    if (cameraActive) {
+      setLivenessPassed(false);
+      setLivenessMessage(t('livenessChallengeBlink'));
+      timer = setTimeout(() => {
+        setLivenessPassed(true);
+        setLivenessMessage(t('livenessPassed'));
+      }, 1600);
+    } else {
+      setLivenessPassed(false);
+    }
+    return () => clearTimeout(timer);
+  }, [cameraActive, t]);
 
   // Dynamic Feedback Banner & Modal
   const [statusBanner, setStatusBanner] = useState(null);
@@ -591,6 +677,11 @@ function CheckInDashboard({
 
   const handleCaptureAndCheckIn = async () => {
     if (!cameraRef.current) return;
+
+    if (!livenessPassed) {
+      Alert.alert('Anti-Spoofing Check', t('livenessChallengeBlink'));
+      return;
+    }
 
     setIsProcessing(true);
     setProcessingStatus(t('syncing'));
@@ -1093,10 +1184,20 @@ function CheckInDashboard({
               autofocus="on"
             />
 
-            {/* Centered Target Face Oval Reticle */}
+            {/* Centered Target Face Oval Reticle & Liveness Feedback */}
             <View style={styles.fullScreenReticleContainer} pointerEvents="none">
-              <View style={styles.fullScreenFaceOval} />
-              <Text style={styles.fullScreenInstructionText}>{t('positionFaceOval')}</Text>
+              <View style={[styles.fullScreenFaceOval, livenessPassed && styles.fullScreenFaceOvalPassed]} />
+
+              <View style={[styles.livenessChallengePill, livenessPassed && styles.livenessChallengePillPassed]}>
+                {livenessPassed ? (
+                  <Check size={18} color="#10b981" />
+                ) : (
+                  <ActivityIndicator size="small" color="#38bdf8" />
+                )}
+                <Text style={styles.livenessChallengeText}>
+                  {livenessPassed ? t('livenessPassed') : t('livenessChallengeBlink')}
+                </Text>
+              </View>
             </View>
 
             {/* Top Header Overlay */}
@@ -1139,15 +1240,21 @@ function CheckInDashboard({
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.cameraCaptureActionBtn, isProcessing && styles.btnDisabled]}
+                  style={[
+                    styles.cameraCaptureActionBtn,
+                    livenessPassed && styles.cameraCaptureActionBtnPassed,
+                    (!livenessPassed || isProcessing) && styles.btnDisabled
+                  ]}
                   onPress={handleCaptureAndCheckIn}
-                  disabled={isProcessing}
+                  disabled={!livenessPassed || isProcessing}
                   activeOpacity={0.8}
                 >
                   {isProcessing ? (
                     <ActivityIndicator color="#ffffff" size="small" />
                   ) : (
-                    <Text style={styles.cameraCaptureActionText}>{t('verifyAndCheckIn')}</Text>
+                    <Text style={styles.cameraCaptureActionText}>
+                      {livenessPassed ? `✓ ${t('verifyAndCheckIn')}` : t('verifyingLiveness')}
+                    </Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -1183,7 +1290,7 @@ function CheckInDashboard({
               autofocus="on"
             />
 
-            {/* Centered Target Face Oval Reticle */}
+            {/* Centered Target Face Oval Reticle for Enrollment */}
             <View style={styles.fullScreenReticleContainer} pointerEvents="none">
               <View style={styles.fullScreenFaceOval} />
               <Text style={styles.fullScreenInstructionText}>{t('positionFaceOval')}</Text>
@@ -1703,6 +1810,24 @@ const createStyles = (colors, isDark) =>
     fontSize: 15,
     fontWeight: '700',
   },
+  biometricBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: 14,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    marginTop: 12,
+    gap: 8,
+  },
+  biometricBtnText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
   loginFooter: {
     marginTop: 24,
     alignItems: 'center',
@@ -2109,6 +2234,44 @@ const createStyles = (colors, isDark) =>
     borderRadius: 20,
     overflow: 'hidden',
     letterSpacing: 0.3,
+  },
+  fullScreenFaceOvalPassed: {
+    borderColor: '#10b981',
+    borderStyle: 'solid',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  livenessChallengePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    borderWidth: 1.5,
+    borderColor: '#38bdf8',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 24,
+    marginTop: 20,
+    gap: 8,
+  },
+  livenessChallengePillPassed: {
+    borderColor: '#10b981',
+    backgroundColor: 'rgba(6, 78, 59, 0.9)',
+  },
+  livenessChallengeText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  cameraCaptureActionBtnPassed: {
+    backgroundColor: '#059669',
+    shadowColor: '#10b981',
+    shadowOpacity: 0.5,
   },
   cameraTopOverlay: {
     position: 'absolute',

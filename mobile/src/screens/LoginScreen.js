@@ -22,7 +22,8 @@ import {
   Sparkles,
   Lock,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  Fingerprint
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -30,6 +31,7 @@ import { useLanguage } from '../context/LanguageContext';
 import LanguageSelector from '../components/LanguageSelector';
 import { setCustomBaseUrl, DEFAULT_API_BASE_URL } from '../api/client';
 import PasswordInput from '../components/PasswordInput';
+import { checkBiometricSupport, authenticateWithBiometrics, saveBiometricCredentials, getBiometricCredentials } from '../utils/biometrics';
 
 export default function LoginScreen() {
   const { login, isLoading } = useAuth();
@@ -42,6 +44,40 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const [modalError, setModalError] = useState(null); // { title: string, message: string }
   const [showConfig, setShowConfig] = useState(false);
+  const [bioSupport, setBioSupport] = useState({ isAvailable: false, type: 'Fingerprint' });
+
+  useEffect(() => {
+    checkBiometricSupport().then((res) => {
+      setBioSupport(res);
+    });
+  }, []);
+
+  const handleBiometricLogin = async () => {
+    try {
+      const stored = await getBiometricCredentials();
+      if (!stored || !stored.identifier || !stored.password) {
+        Alert.alert(
+          t('biometricLogin'),
+          'Please sign in once with your Employee ID and password to link your fingerprint on this device.'
+        );
+        return;
+      }
+
+      const authRes = await authenticateWithBiometrics(t('biometricPrompt'));
+      if (!authRes.success) {
+        if (authRes.error && authRes.error !== 'user_cancel') {
+          Alert.alert(t('authFailedTitle'), t('biometricsFailed'));
+        }
+        return;
+      }
+
+      setIdentifier(stored.identifier);
+      setPassword(stored.password);
+      await login(stored.identifier, stored.password);
+    } catch (err) {
+      Alert.alert(t('authFailedTitle'), err.message || t('biometricsFailed'));
+    }
+  };
 
   // Button press scale animation
   const buttonScale = useRef(new Animated.Value(1)).current;
@@ -81,6 +117,10 @@ export default function LoginScreen() {
 
     setCustomBaseUrl(serverUrl);
     const result = await login(identifier.trim(), password);
+    if (result.success) {
+      saveBiometricCredentials(identifier.trim(), password);
+      return;
+    }
     if (!result.success) {
       let rawMsg = result.error || '';
       let title = t('authFailedTitle');
@@ -261,10 +301,23 @@ export default function LoginScreen() {
                 {isLoading ? (
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
-                  <Text style={styles.buttonText}>Sign In to Workstation</Text>
+                  <Text style={styles.buttonText}>{t('signInToWorkstation')}</Text>
                 )}
               </TouchableOpacity>
             </Animated.View>
+
+            {/* Biometric Quick Login Button */}
+            {bioSupport.isAvailable && (
+              <TouchableOpacity
+                style={styles.biometricBtn}
+                onPress={handleBiometricLogin}
+                disabled={isLoading}
+                activeOpacity={0.8}
+              >
+                <Fingerprint size={20} color={colors.primary} />
+                <Text style={styles.biometricBtnText}>{t('biometricLogin')}</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Footer Context */}
@@ -478,6 +531,24 @@ const createStyles = (colors, isDark) =>
       fontSize: 15,
       fontWeight: '800',
       letterSpacing: 0.4,
+    },
+    biometricBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surfaceSubtle,
+      borderWidth: 1.5,
+      borderColor: colors.primary,
+      borderRadius: 16,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      marginTop: 12,
+      gap: 8,
+    },
+    biometricBtnText: {
+      color: colors.primary,
+      fontSize: 14,
+      fontWeight: '700',
     },
     footer: {
       marginTop: 26,

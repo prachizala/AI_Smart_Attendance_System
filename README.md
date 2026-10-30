@@ -95,13 +95,50 @@ The attendance verification protocol mandates a strict **Dual-Factor Gate**:
 | :--- | :--- | :--- |
 | **Backend Framework** | **FastAPI (Python 3.11)** | High-performance asynchronous execution, automatic OpenAPI/Swagger documentation, native Pydantic validation. |
 | **Database & ORM** | **SQLite + SQLAlchemy 2.0** | Zero-configuration local database for student demo; seamless future migration to PostgreSQL via connection string change. |
-| **Biometric AI** | **OpenCV (`opencv-python`)** | Fast, local, offline facial detection and feature vector comparison without heavy external cloud API dependencies. |
-| **Mobile Application** | **React Native (Expo)** | Cross-platform Android support, native camera (`expo-camera`) and geolocation (`expo-location`) access. |
-| **Admin Web Portal** | **React.js (Vite)** | Instant HMR, lightweight bundle size, responsive real-time management dashboard. |
+| **Biometric AI** | **OpenCV + face_recognition (128-D Embeddings)** | Fast, local, offline facial detection with auto-downscaling (1280px Lanczos) and EXIF orientation correction. |
+| **Mobile Application** | **React Native (Expo)** | Cross-platform Android client with dark/light themes, trilingual support (EN, HI, GU), full-screen camera viewfinder (`expo-camera`), and geofencing (`expo-location`). |
+| **Admin Web Portal** | **React.js (Vite) + TailwindCSS** | Instant HMR, responsive sidebar/topbar layout, Recharts weekly analytics, dark/light mode toggle, and trilingual support. |
 
 ---
 
-## 4. Windows Quick Start & Running the Project
+## 4. Key Features & Recent Modernizations
+
+### 🌓 Dark & Light Mode Support
+- **Admin Dashboard**: Tailwind CSS `darkMode: 'class'` powered by `ThemeContext` with animated Sun/Moon toggle in navbar and login page. Remembers user preference in `localStorage`.
+- **Mobile Client**: Dual centralized palette (`lightColors` & `darkColors`) in `mobile/src/theme/colors.js`. Automatically synchronizes status bar, navigation theme, and card surfaces via `ThemeContext` and `expo-secure-store`.
+
+### 🌐 Trilingual Support (English, Hindi, Gujarati)
+- Built-in multi-language toggle across both Web Dashboard and Mobile App.
+- **English** (default international standard), **Hindi** (हिन्दी), and **Gujarati** (ગુજરાતી) supported across all screens, buttons, alerts, and badges.
+- Technical/backend jargon removed from user-facing screens for clean, intuitive attendance marking.
+
+### 📸 Full-Screen Immersive Camera & Biometric ScanFace
+- **Full-Screen Viewfinder**: Centered oval reticle guide with smooth flip camera support (`front` / `back`).
+- **Hardware Resource Optimization**: Viewfinders mount strictly when active and unmount on dismissal to prevent Android CameraX hardware locking.
+- **Auto-Downscaling & EXIF Normalization**: Backend automatically resizes oversized mobile camera photos (>1280px) down using Lanczos resampling and auto-corrects orientation before computing 128-D vectors.
+- **Updated Brand Identity**: Replaced generic shield icons with a dedicated facial biometric `ScanFace` brand mark across mobile headers and web sidebar.
+
+### 👆 Device Fingerprint & Biometric Authentication
+- Native hardware fingerprint and Touch ID authentication via `expo-local-authentication`.
+- Employees can sign into the mobile app with a single touch using their enrolled device biometric sensor, with encrypted credential fallback.
+
+### 🛡️ Real-Time Liveness Detection (Anti-Spoofing)
+- Dynamic blink challenge in camera viewfinder to defend against photograph and screen playback presentation attacks.
+- Glowing emerald confirmation reticle (`Live Presence Verified ✓`) upon detecting real human interaction.
+
+### 🖼️ Attendance Photo Watermark Stamp (Proof of Presence)
+- Automatic cryptographic watermark burned onto verified punch photos:
+  `PROOF OF PRESENCE | ID: EMP001 | SBS Campus | YYYY-MM-DD HH:MM:SS | GPS: 23.0022, 72.4557 | VERIFIED ✓`
+- Stored on the server as tamper-evident audit evidence.
+
+### 🔒 Modern UI & Security Components
+- **Password Visibility Toggle**: Custom `PasswordInput` with eye icon across web and mobile.
+- **User-Friendly Error Handling**: Instant popup dialogs and banners for invalid credentials or geofence breaches instead of infinite loading spinners.
+- **Interactive Analytics**: Integrated `Recharts` weekly attendance trend charts and real-time status counters.
+
+---
+
+## 5. Windows Quick Start & Running the Project
 
 ### ⚡ 1-Click Master Launch (Recommended)
 Simply double-click `start_all.bat` in the project root, or execute:
@@ -151,7 +188,7 @@ cd backend; .\venv\Scripts\pytest -v tests
 
 ---
 
-## 5. Viva Presentation & Testing Guide
+## 6. Viva Presentation & Testing Guide
 For college viva presentation preparation, examiners' Q&A, and live demo scripting, refer to:
 - 📖 [`VIVA_AND_TESTING_GUIDE.md`](./VIVA_AND_TESTING_GUIDE.md) — Includes:
   1. Exact coordinate mocks & edge case testing steps (Face mismatch, GPS breach, Duplicate punch).
@@ -160,7 +197,7 @@ For college viva presentation preparation, examiners' Q&A, and live demo scripti
 
 ---
 
-## 6. Security & Academic Integrity Disclosures
+## 7. Security & Academic Integrity Disclosures
 
 1. **Biometric Privacy**: Face representations are stored as mathematical 128-dimensional vectors rather than storing raw biometric credentials unencrypted.
 2. **2D vs 3D Liveness Note**: The MVP leverages 2D computer vision. In project viva presentations, students candidly identify that advanced production deployments utilize 3D infrared depth mapping or active blink challenge-response to prevent high-resolution photograph presentation attacks.

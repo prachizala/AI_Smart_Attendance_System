@@ -1355,7 +1355,7 @@ function CheckInDashboard({
             <CameraView
               key={cameraFacing}
               ref={cameraRef}
-              style={{ flex: 1, width: '100%', height: '100%' }}
+              style={StyleSheet.absoluteFillObject}
               facing={cameraFacing}
               mode="picture"
               autofocus="on"
@@ -1461,7 +1461,7 @@ function CheckInDashboard({
             <CameraView
               key={enrollFacing}
               ref={enrollCameraRef}
-              style={{ flex: 1, width: '100%', height: '100%' }}
+              style={StyleSheet.absoluteFillObject}
               facing={enrollFacing}
               mode="picture"
               autofocus="on"

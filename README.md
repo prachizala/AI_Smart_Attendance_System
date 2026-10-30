@@ -114,6 +114,7 @@ The attendance verification protocol mandates a strict **Dual-Factor Gate**:
 
 ### 📸 Full-Screen Immersive Camera & Biometric ScanFace
 - **Full-Screen Viewfinder**: Centered oval reticle guide with smooth flip camera support (`front` / `back`).
+- **Gallery & Photo Upload Fallback**: Integrated `expo-image-picker` allowing employees and emulator testers to upload a selfie photo directly from the device gallery or files if the camera preview is unavailable.
 - **Hardware Resource Optimization**: Viewfinders mount strictly when active and unmount on dismissal to prevent Android CameraX hardware locking.
 - **Auto-Downscaling & EXIF Normalization**: Backend automatically resizes oversized mobile camera photos (>1280px) down using Lanczos resampling and auto-corrects orientation before computing 128-D vectors.
 - **Updated Brand Identity**: Replaced generic shield icons with a dedicated facial biometric `ScanFace` brand mark across mobile headers and web sidebar.

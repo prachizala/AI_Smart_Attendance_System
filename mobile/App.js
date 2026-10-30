@@ -17,7 +17,8 @@ import {
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Sun, Moon, MapPin, Clock, Calendar, Sparkles, CheckCircle2, XCircle, AlertCircle, Camera, X, RotateCcw, ScanFace, Fingerprint, Check, Bell } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Sun, Moon, MapPin, Clock, Calendar, Sparkles, CheckCircle2, XCircle, AlertCircle, Camera, X, RotateCcw, ScanFace, Fingerprint, Check, Bell, Image as ImageIcon } from 'lucide-react-native';
 import AttendanceHistoryScreen from './screens/AttendanceHistoryScreen';
 import LeaveScreen from './src/screens/LeaveScreen';
 import { saveSecureToken, getSecureToken, deleteSecureToken } from './src/utils/secureStorage';
@@ -561,14 +562,18 @@ function CheckInDashboard({
   const [enrollFacing, setEnrollFacing] = useState('front');
   const enrollCameraRef = useRef(null);
 
-  const handleEnrollFace = async () => {
-    if (!enrollCameraRef.current) return;
+  const handleEnrollFace = async (overrideBase64 = null) => {
     setIsEnrolling(true);
     try {
-      const photo = await enrollCameraRef.current.takePictureAsync({
-        base64: true,
-        quality: 0.8,
-      });
+      let base64Photo = overrideBase64;
+      if (!base64Photo) {
+        if (!enrollCameraRef.current) return;
+        const photo = await enrollCameraRef.current.takePictureAsync({
+          base64: true,
+          quality: 0.8,
+        });
+        base64Photo = photo.base64;
+      }
 
       const cleanUrl = serverUrl.replace(/\/+$/, '');
       const response = await fetch(`${cleanUrl}/api/auth/register-face`, {
@@ -576,7 +581,7 @@ function CheckInDashboard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: user?.id,
-          face_image_base64: photo.base64,
+          face_image_base64: base64Photo,
         }),
       });
 
@@ -605,6 +610,29 @@ function CheckInDashboard({
       Alert.alert(t('faceMismatchTitle'), err.message || t('faceMismatchMsg'));
     } finally {
       setIsEnrolling(false);
+    }
+  };
+
+  const handlePickFromGalleryForEnroll = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Gallery access is required to select a photo.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]?.base64) {
+        await handleEnrollFace(result.assets[0].base64);
+      }
+    } catch (e) {
+      Alert.alert('Gallery Error', e.message || 'Failed to select image from gallery.');
     }
   };
 
@@ -711,10 +739,10 @@ function CheckInDashboard({
     setCameraActive(true);
   };
 
-  const handleCaptureAndCheckIn = async () => {
-    if (!cameraRef.current) return;
+  const handleCaptureAndCheckIn = async (overrideBase64 = null) => {
+    if (!overrideBase64 && !cameraRef.current) return;
 
-    if (!livenessPassed) {
+    if (!overrideBase64 && !livenessPassed) {
       Alert.alert('Anti-Spoofing Check', t('livenessChallengeBlink'));
       return;
     }
@@ -726,11 +754,15 @@ function CheckInDashboard({
     let currentCoords = location;
 
     try {
-      photo = await cameraRef.current.takePictureAsync({
-        base64: true,
-        quality: 0.6,
-        skipProcessing: false,
-      });
+      if (overrideBase64) {
+        photo = { base64: overrideBase64 };
+      } else {
+        photo = await cameraRef.current.takePictureAsync({
+          base64: true,
+          quality: 0.6,
+          skipProcessing: false,
+        });
+      }
 
       setCameraActive(false);
 
@@ -868,6 +900,30 @@ function CheckInDashboard({
     } finally {
       setIsProcessing(false);
       setProcessingStatus('');
+    }
+  };
+
+  const handlePickFromGalleryForCheckIn = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Gallery access is required to select a photo.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]?.base64) {
+        setCameraActive(false);
+        await handleCaptureAndCheckIn(result.assets[0].base64);
+      }
+    } catch (e) {
+      Alert.alert('Gallery Error', e.message || 'Failed to select image from gallery.');
     }
   };
 
@@ -1406,6 +1462,16 @@ function CheckInDashboard({
 
             {/* Bottom Actions Overlay */}
             <SafeAreaView style={styles.cameraBottomOverlay}>
+              <TouchableOpacity
+                style={styles.cameraGalleryPickerBtn}
+                onPress={handlePickFromGalleryForCheckIn}
+                disabled={isProcessing}
+                activeOpacity={0.8}
+              >
+                <ImageIcon size={18} color="#38bdf8" />
+                <Text style={styles.cameraGalleryPickerText}>🖼️ {t('uploadFromGallery')}</Text>
+              </TouchableOpacity>
+
               <View style={styles.cameraBottomActions}>
                 <TouchableOpacity
                   style={styles.cameraBottomCancelBtn}
@@ -1502,6 +1568,16 @@ function CheckInDashboard({
 
             {/* Bottom Actions Overlay */}
             <SafeAreaView style={styles.cameraBottomOverlay}>
+              <TouchableOpacity
+                style={styles.cameraGalleryPickerBtn}
+                onPress={handlePickFromGalleryForEnroll}
+                disabled={isEnrolling}
+                activeOpacity={0.8}
+              >
+                <ImageIcon size={18} color="#38bdf8" />
+                <Text style={styles.cameraGalleryPickerText}>🖼️ {t('uploadFromGallery')}</Text>
+              </TouchableOpacity>
+
               <View style={styles.cameraBottomActions}>
                 <TouchableOpacity
                   style={styles.cameraBottomCancelBtn}
@@ -2571,6 +2647,25 @@ const createStyles = (colors, isDark) =>
     left: 0,
     right: 0,
     zIndex: 20,
+  },
+  cameraGalleryPickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(56, 189, 248, 0.4)',
+    marginHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 14,
+    marginBottom: 4,
+  },
+  cameraGalleryPickerText: {
+    color: '#38bdf8',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   cameraBottomActions: {
     flexDirection: 'row',

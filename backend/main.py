@@ -337,6 +337,7 @@ class CheckInPayload(BaseModel):
     latitude: float = Field(..., ge=-90.0, le=90.0, json_schema_extra={"example": 23.002217})
     longitude: float = Field(..., ge=-180.0, le=180.0, json_schema_extra={"example": 72.455763})
     face_image_base64: str = Field(..., min_length=1, max_length=7000000, description="Base64 encoded live camera selfie")
+    offline_timestamp: Optional[str] = Field(None, description="ISO timestamp recorded locally when device was offline")
 
 
 class CheckOutPayload(BaseModel):
@@ -408,8 +409,17 @@ def check_in(
             )
         )
 
+    # Determine punch timestamp (supports offline sync timestamp if present)
+    if payload.offline_timestamp:
+        try:
+            now = datetime.fromisoformat(payload.offline_timestamp.replace("Z", "+00:00"))
+        except Exception:
+            now = datetime.utcnow()
+    else:
+        now = datetime.utcnow()
+    today = now.date()
+
     # Gate 3: Anti-Duplicate Daily Check
-    today = date.today()
     existing_record = db.query(models.Attendance).filter(
         models.Attendance.user_id == user.id,
         models.Attendance.date == today
@@ -421,7 +431,6 @@ def check_in(
             detail=f"Employee already checked in for today at {existing_record.check_in.strftime('%H:%M:%S')}"
         )
 
-    now = datetime.utcnow()
     # Check late arrival (after 09:30 AM local/server time)
     attendance_status = "late" if now.time() > datetime.strptime("09:30", "%H:%M").time() else "present"
 

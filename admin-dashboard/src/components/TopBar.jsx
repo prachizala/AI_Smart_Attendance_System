@@ -12,13 +12,16 @@ import {
 import { useAuth } from '../context/AuthContext';
 import ThemeToggle from './ThemeToggle';
 import LanguageSelector from './LanguageSelector';
+import NotificationsDropdown from './NotificationsDropdown';
 
 export default function TopBar({ 
   onMenuClick, 
   onRefresh, 
   isRefreshing, 
   searchQuery, 
-  setSearchQuery 
+  setSearchQuery,
+  recentPunches = [],
+  pendingLeavesCount = 0
 }) {
   const { user, logout } = useAuth();
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -67,6 +70,12 @@ export default function TopBar({
 
           {/* Language Selector */}
           <LanguageSelector compact />
+
+          {/* Real-time Notifications Bell */}
+          <NotificationsDropdown 
+            recentPunches={recentPunches} 
+            pendingLeavesCount={pendingLeavesCount} 
+          />
 
           {/* Theme Toggle Sun / Moon */}
           <ThemeToggle />

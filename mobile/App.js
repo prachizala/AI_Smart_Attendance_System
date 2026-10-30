@@ -17,11 +17,12 @@ import {
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Sun, Moon, MapPin, Clock, Calendar, Sparkles, CheckCircle2, XCircle, AlertCircle, Camera, X, RotateCcw, ScanFace, Fingerprint, Check } from 'lucide-react-native';
+import { Sun, Moon, MapPin, Clock, Calendar, Sparkles, CheckCircle2, XCircle, AlertCircle, Camera, X, RotateCcw, ScanFace, Fingerprint, Check, Bell } from 'lucide-react-native';
 import AttendanceHistoryScreen from './screens/AttendanceHistoryScreen';
 import LeaveScreen from './src/screens/LeaveScreen';
 import { saveSecureToken, getSecureToken, deleteSecureToken } from './src/utils/secureStorage';
 import { checkBiometricSupport, authenticateWithBiometrics, saveBiometricCredentials, getBiometricCredentials } from './src/utils/biometrics';
+import { queueOfflinePunch, getOfflinePunches, syncOfflinePunches } from './src/utils/offlineSync';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
 import LanguageSelector from './src/components/LanguageSelector';
@@ -519,6 +520,41 @@ function CheckInDashboard({
     details: null,
   });
 
+  // Offline Sync & In-App Notifications State
+  const [offlineCount, setOfflineCount] = useState(0);
+  const [isSyncingOffline, setIsSyncingOffline] = useState(false);
+  const [notificationsVisible, setNotificationsVisible] = useState(false);
+
+  const refreshOfflineCount = async () => {
+    try {
+      const queue = await getOfflinePunches();
+      setOfflineCount(queue.length);
+    } catch (_) {}
+  };
+
+  useEffect(() => {
+    refreshOfflineCount();
+  }, []);
+
+  const handleSyncOfflineNow = async () => {
+    if (isSyncingOffline) return;
+    setIsSyncingOffline(true);
+    try {
+      const res = await syncOfflinePunches(serverUrl);
+      await refreshOfflineCount();
+      if (res.syncedCount > 0) {
+        Alert.alert('Offline Sync', `Successfully synchronized ${res.syncedCount} punch(es) with the server.`);
+        fetchTodayStatus();
+      } else if (res.failedCount > 0) {
+        Alert.alert('Sync Incomplete', `Could not reach server: ${res.errors[0] || 'Check network'}`);
+      }
+    } catch (e) {
+      Alert.alert('Sync Failed', e.message || 'Unable to sync');
+    } finally {
+      setIsSyncingOffline(false);
+    }
+  };
+
   // Biometric Face Enrollment State
   const [enrollModalVisible, setEnrollModalVisible] = useState(false);
   const [isEnrolling, setIsEnrolling] = useState(false);
@@ -686,8 +722,11 @@ function CheckInDashboard({
     setIsProcessing(true);
     setProcessingStatus(t('syncing'));
 
+    let photo = null;
+    let currentCoords = location;
+
     try {
-      const photo = await cameraRef.current.takePictureAsync({
+      photo = await cameraRef.current.takePictureAsync({
         base64: true,
         quality: 0.6,
         skipProcessing: false,
@@ -695,7 +734,6 @@ function CheckInDashboard({
 
       setCameraActive(false);
 
-      let currentCoords = location;
       if (!currentCoords) {
         currentCoords = await fetchCurrentLocation(demoMode);
       }
@@ -788,6 +826,36 @@ function CheckInDashboard({
       fetchTodayStatus();
     } catch (err) {
       setCameraActive(false);
+      const isNetworkErr = 
+        err.message?.toLowerCase().includes('network') ||
+        err.message?.toLowerCase().includes('timeout') ||
+        err.message?.toLowerCase().includes('failed to fetch') ||
+        err.message?.toLowerCase().includes('connection');
+
+      if (isNetworkErr && photo?.base64 && currentCoords) {
+        await queueOfflinePunch({
+          user_id: user?.id,
+          employee_id: user?.employee_id,
+          latitude: currentCoords.latitude,
+          longitude: currentCoords.longitude,
+          face_image_base64: photo.base64,
+        });
+        await refreshOfflineCount();
+        setResultModal({
+          visible: true,
+          type: 'success',
+          title: t('offlinePunchSavedTitle'),
+          message: t('offlinePunchSavedMsg'),
+          details: {
+            Time: new Date().toLocaleTimeString(),
+            Mode: 'OFFLINE QUEUE (Encrypted)',
+            Status: 'PENDING SYNC',
+          },
+        });
+        setStatusBanner({ type: 'success', text: t('offlinePunchSavedTitle') });
+        return;
+      }
+
       const msg = err.message || 'Check-in request failed.';
       setResultModal({
         visible: true,
@@ -888,9 +956,19 @@ function CheckInDashboard({
           </View>
         </View>
 
-        {/* Header Right Actions: Language Selector & Theme Toggle */}
+        {/* Header Right Actions: Language Selector, Theme Toggle & Notification Bell */}
         <View style={styles.topBarRight}>
           <LanguageSelector compact={true} />
+          <TouchableOpacity
+            style={styles.notificationBtn}
+            onPress={() => setNotificationsVisible(true)}
+            activeOpacity={0.7}
+            accessibilityLabel="Notifications"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Bell size={20} color={colors.textPrimary} />
+            {offlineCount > 0 && <View style={styles.notificationDot} />}
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.themeToggleBtn}
             onPress={toggleTheme}
@@ -903,6 +981,30 @@ function CheckInDashboard({
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Offline Unsynced Punches Banner */}
+      {offlineCount > 0 && (
+        <View style={styles.offlineBanner}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+            <View style={styles.offlineDot} />
+            <Text style={styles.offlineBannerText}>
+              {offlineCount} {t('unsyncedPunches')}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.syncBtnSmall}
+            onPress={handleSyncOfflineNow}
+            disabled={isSyncingOffline}
+            activeOpacity={0.8}
+          >
+            {isSyncingOffline ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <Text style={styles.syncBtnSmallText}>{t('syncNow')}</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Hero Live Clock & Clean Status Card */}
       <View style={styles.heroClockCard}>
@@ -1157,6 +1259,81 @@ function CheckInDashboard({
             <TouchableOpacity
               style={styles.modalDismissBtn}
               onPress={() => setResultModal((prev) => ({ ...prev, visible: false }))}
+            >
+              <Text style={styles.modalDismissText}>{t('acknowledge')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* In-App Notifications Dropdown Modal */}
+      <Modal
+        visible={notificationsVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setNotificationsVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Bell size={20} color={colors.primary} />
+                <Text style={styles.modalTitle}>{t('notifications')}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setNotificationsVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <X size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ width: '100%', gap: 10, marginBottom: 16 }}>
+              <View style={styles.notificationCardItem}>
+                <View style={[styles.notificationBadgeIcon, { backgroundColor: '#10b98120' }]}>
+                  <CheckCircle2 size={16} color="#10b981" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.notifTitle}>Smart Attendance Online</Text>
+                  <Text style={styles.notifSub}>Dual-factor geofence (100m) & live face recognition active.</Text>
+                </View>
+              </View>
+
+              {user?.has_face_registered && (
+                <View style={styles.notificationCardItem}>
+                  <View style={[styles.notificationBadgeIcon, { backgroundColor: '#38bdf820' }]}>
+                    <ScanFace size={16} color="#38bdf8" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.notifTitle}>Biometric Face Profile</Text>
+                    <Text style={styles.notifSub}>128-D biometric vector verified for {user?.employee_id}.</Text>
+                  </View>
+                </View>
+              )}
+
+              {offlineCount > 0 ? (
+                <View style={styles.notificationCardItem}>
+                  <View style={[styles.notificationBadgeIcon, { backgroundColor: '#f59e0b20' }]}>
+                    <Clock size={16} color="#f59e0b" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.notifTitle}>{offlineCount} Unsynced Punches</Text>
+                    <Text style={styles.notifSub}>Queued locally on device. Tap 'Sync Now' when ready.</Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.notificationCardItem}>
+                  <View style={[styles.notificationBadgeIcon, { backgroundColor: '#64748b20' }]}>
+                    <Check size={16} color="#64748b" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.notifTitle}>All Punches Synchronized</Text>
+                    <Text style={styles.notifSub}>No pending offline records found.</Text>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={styles.modalDismissBtn}
+              onPress={() => setNotificationsVisible(false)}
             >
               <Text style={styles.modalDismissText}>{t('acknowledge')}</Text>
             </TouchableOpacity>
@@ -1919,6 +2096,88 @@ const createStyles = (colors, isDark) =>
     alignItems: 'center',
     gap: 10,
     marginRight: 6,
+  },
+  notificationBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ef4444',
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.4)',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 14,
+  },
+  offlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#f59e0b',
+  },
+  offlineBannerText: {
+    color: '#d97706',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  syncBtnSmall: {
+    backgroundColor: '#f59e0b',
+    borderRadius: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+  },
+  syncBtnSmallText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  notificationCardItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  notificationBadgeIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notifTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginBottom: 2,
+  },
+  notifSub: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    lineHeight: 15,
   },
   promptCard: {
     backgroundColor: colors.surface,

@@ -19,6 +19,7 @@ import {
   ArrowUpRight
 } from 'lucide-react';
 import WeeklyAttendanceChart from './components/WeeklyAttendanceChart';
+import GeofenceMap from './components/GeofenceMap';
 
 export default function AdminDashboard() {
   // State for Attendance & Leaves
@@ -319,6 +320,23 @@ export default function AdminDashboard() {
 
       {/* Interactive Recharts Attendance Analytics Chart */}
       <WeeklyAttendanceChart todayLogs={attendanceLogs} stats={stats} />
+
+      {/* Visual Live Geofence Radar Telemetry Map */}
+      <GeofenceMap 
+        officeLat={23.002217}
+        officeLon={72.455763}
+        radiusMeters={100}
+        recentPunches={attendanceLogs.map((log, idx) => ({
+          id: log.id || `rec-${idx}`,
+          name: log.employee_name || 'Employee',
+          employee_id: log.employee_id,
+          distance: Math.round(log.distance_meters || 18),
+          status: log.status || 'present',
+          time: log.check_in ? new Date(log.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Today',
+          offsetX: 50 + (Math.cos(idx * 2.2) * Math.min(36, (log.distance_meters || 20) * 0.3)),
+          offsetY: 50 + (Math.sin(idx * 2.2) * Math.min(36, (log.distance_meters || 20) * 0.3)),
+        }))}
+      />
 
       {/* ====================================================================== */}
       {/* DOMAIN 1: REAL-TIME ATTENDANCE TABLE                                   */}

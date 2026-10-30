@@ -114,6 +114,12 @@ export const translations = {
     livenessChallengeSmile: '🙂 Smile to verify',
     livenessPassed: 'Live Presence Verified ✓',
     verifyingLiveness: 'Verifying live presence...',
+    offlinePunchSavedTitle: 'Offline Punch Queued',
+    offlinePunchSavedMsg: 'Network connection is unavailable. Your attendance punch has been safely stored locally and will sync once connected.',
+    unsyncedPunches: 'Unsynced Offline Punches',
+    syncNow: 'Sync Now',
+    notifications: 'Notifications',
+    noNotifications: 'No new notifications at this time',
   },
 
   hi: {
@@ -228,6 +234,12 @@ export const translations = {
     livenessChallengeSmile: '🙂 पुष्टि के लिए मुस्कुराएं',
     livenessPassed: 'सजीव उपस्थिति सत्यापित ✓',
     verifyingLiveness: 'सजीव उपस्थिति का सत्यापन हो रहा है...',
+    offlinePunchSavedTitle: 'ऑफ़लाइन उपस्थिति सुरक्षित की गई',
+    offlinePunchSavedMsg: 'नेटवर्क उपलब्ध नहीं है। आपकी उपस्थिति स्थानीय रूप से सुरक्षित कर ली गई है और नेटवर्क आने पर अपने आप सिंक हो जाएगी।',
+    unsyncedPunches: 'असिंक ऑफ़लाइन उपस्थिति',
+    syncNow: 'अभी सिंक करें',
+    notifications: 'सूचनाएं',
+    noNotifications: 'इस समय कोई नई सूचना नहीं है',
   },
 
   gu: {
@@ -342,6 +354,12 @@ export const translations = {
     livenessChallengeSmile: '🙂 ચકાસણી માટે હસો',
     livenessPassed: 'વાસ્તવિક હાજરી ચકાસાયેલ ✓',
     verifyingLiveness: 'વાસ્તવિક હાજરી ચકાસાઈ રહી છે...',
+    offlinePunchSavedTitle: 'ઑફલાઇન હાજરી સંગ્રહિત',
+    offlinePunchSavedMsg: 'નેટવર્ક ઉપલબ્ધ નથી. તમારી હાજરી સ્થાનિક રીતે સંગ્રહિત કરવામાં આવી છે અને નેટવર્ક આવતા જ આપમેળે સિંક થઈ જશે.',
+    unsyncedPunches: 'અસિંક ઑફલાઇન હાજરી',
+    syncNow: 'હવે સિંક કરો',
+    notifications: 'સૂચનાઓ',
+    noNotifications: 'હાલમાં કોઈ નવી સૂચના નથી',
   },
 
   gu: {
@@ -456,6 +474,12 @@ export const translations = {
     livenessChallengeSmile: '🙂 ચકાસણી માટે હસો',
     livenessPassed: 'વાસ્તવિક હાજરી ચકાસાયેલ ✓',
     verifyingLiveness: 'વાસ્તવિક હાજરી ચકાસાઈ રહી છે...',
+    offlinePunchSavedTitle: 'ઑફલાઇન હાજરી સંગ્રહિત',
+    offlinePunchSavedMsg: 'નેટવર્ક ઉપલબ્ધ નથી. તમારી હાજરી સ્થાનિક રીતે સંગ્રહિત કરવામાં આવી છે અને નેટવર્ક આવતા જ આપમેળે સિંક થઈ જશે.',
+    unsyncedPunches: 'અસિંક ઑફલાઇન હાજરી',
+    syncNow: 'હવે સિંક કરો',
+    notifications: 'સૂચનાઓ',
+    noNotifications: 'હાલમાં કોઈ નવી સૂચના નથી',
   },
 };
 

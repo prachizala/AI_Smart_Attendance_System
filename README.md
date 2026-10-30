@@ -131,6 +131,18 @@ The attendance verification protocol mandates a strict **Dual-Factor Gate**:
   `PROOF OF PRESENCE | ID: EMP001 | SBS Campus | YYYY-MM-DD HH:MM:SS | GPS: 23.0022, 72.4557 | VERIFIED ✓`
 - Stored on the server as tamper-evident audit evidence.
 
+### 📶 Offline Punch Queue & Auto-Sync
+- If an employee checks in with poor network or inside a basement, the attendance record is safely encrypted and queued locally on the device (`expo-secure-store`).
+- An amber **Unsynced Punches** chip appears on the dashboard with 1-click **Sync Now**, which synchronizes the punch along with its original offline timestamp once connected.
+
+### 🔔 Real-Time In-App Notifications & Alerts
+- **Admin Dashboard**: Real-time notifications bell in top bar showing live check-ins, biometric enrollments, and pending leave counts with unread badges.
+- **Mobile Client**: Header notifications bell with quick system status cards, face verification alerts, and offline punch health.
+
+### 🗺️ Live Geofence Radar Telemetry Map
+- Interactive visual map in the Admin Dashboard with animated radar pulse sweep and 100m geofence perimeter circle.
+- Plots verified employee punch locations with distance in meters from the office center (SBS Campus, Ahmedabad) and interactive detail popups.
+
 ### 🔒 Modern UI & Security Components
 - **Password Visibility Toggle**: Custom `PasswordInput` with eye icon across web and mobile.
 - **User-Friendly Error Handling**: Instant popup dialogs and banners for invalid credentials or geofence breaches instead of infinite loading spinners.

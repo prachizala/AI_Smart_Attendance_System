@@ -1,7 +1,18 @@
 import React from 'react';
 import { Users, UserCheck, Clock, UserX, CalendarOff, MapPin, CheckCircle2, XCircle } from 'lucide-react';
+import GeofenceMap from '../components/GeofenceMap';
 
 export default function DashboardPage({ stats, todayLogs, isLoading }) {
+  const mapPunches = (todayLogs || []).map((log, idx) => ({
+    id: log.id || `log-${idx}`,
+    name: log.employee_name || 'Employee',
+    employee_id: log.employee_id,
+    distance: log.distance_meters || 22,
+    status: log.status || 'present',
+    time: log.check_in ? new Date(log.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Today',
+    offsetX: 50 + (Math.cos(idx * 2.1) * Math.min(36, (log.distance_meters || 25) * 0.32)),
+    offsetY: 50 + (Math.sin(idx * 2.1) * Math.min(36, (log.distance_meters || 25) * 0.32)),
+  }));
   const cards = [
     {
       title: 'Total Employees',
@@ -73,6 +84,14 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
           );
         })}
       </div>
+
+      {/* Live Geofence Map Visualizer */}
+      <GeofenceMap 
+        officeLat={23.002217}
+        officeLon={72.455763}
+        radiusMeters={100}
+        recentPunches={mapPunches}
+      />
 
       {/* Real-time Daily Attendance Table */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">

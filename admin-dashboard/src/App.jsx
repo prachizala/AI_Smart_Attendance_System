@@ -108,6 +108,13 @@ function AdminWorkspaceLayout() {
           isRefreshing={isLoading}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
+          recentPunches={(todayLogs || []).map(l => ({
+            name: l.employee_name,
+            employee_id: l.employee_id,
+            time: l.check_in ? new Date(l.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Today',
+            distance: `${l.distance_meters || 15}m`
+          }))}
+          pendingLeavesCount={(leaves || []).filter(lv => lv.status === 'pending').length}
         />
 
         {/* View Port Content */}

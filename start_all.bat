@@ -3,7 +3,7 @@ title AI Smart Attendance - Master Launcher
 setlocal enabledelayedexpansion
 
 echo ==============================================================================
-echo        AI Smart Attendance & Workforce Management System - Launcher
+echo        AI Smart Attendance and Workforce Management System - Launcher
 echo ==============================================================================
 echo.
 
@@ -26,7 +26,7 @@ echo ===========================================================================
 
 :: 1. Start Backend Server
 echo [1/3] Launching FastAPI Backend on http://0.0.0.0:8000 ...
-start "Backend - FastAPI (Port 8000)" cmd /k "cd /d %~dp0backend && .\venv\Scripts\uvicorn.exe main:app --reload --host 0.0.0.0 --port 8000"
+start "Backend - FastAPI (Port 8000)" cmd /k "cd /d %~dp0backend && .\venv\Scripts\python.exe run_server.py"
 
 :: Wait 2 seconds
 ping 127.0.0.1 -n 3 > nul

@@ -81,7 +81,7 @@ export default function ChatbotModal({
     setIsLoading(true);
 
     try {
-      const cleanUrl = (serverUrl || 'http://192.168.1.3:8000').replace(/\/+$/, '');
+      const cleanUrl = (serverUrl || 'https://ai-smart-attendance-system-2m55.onrender.com').replace(/\/+$/, '');
       const response = await fetch(`${cleanUrl}/api/chatbot/query`, {
         method: 'POST',
         headers: {

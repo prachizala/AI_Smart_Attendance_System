@@ -1,12 +1,12 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
 
-// Configured for local Wi-Fi LAN IP (192.168.1.3) for physical mobile device
-const LAN_API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.3:8000';
+// Default to live production HTTPS backend URL (with env var override)
+const PRODUCTION_API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ai-smart-attendance-system-2m55.onrender.com';
 export const DEFAULT_API_BASE_URL = Platform.select({
-  android: LAN_API_URL,
-  ios: LAN_API_URL,
-  default: LAN_API_URL,
+  android: PRODUCTION_API_URL,
+  ios: PRODUCTION_API_URL,
+  default: PRODUCTION_API_URL,
 });
 
 const apiClient = axios.create({
@@ -52,110 +52,50 @@ export const api = {
     return res.data;
   },
 
-  // Attendance (Dual-factor Biometric & Geofencing)
-  checkIn: async (...args) => {
-    let payload = {};
-    if (args.length === 1 && typeof args[0] === 'object') {
-      payload = args[0];
-    } else if (typeof args[0] === 'number' && typeof args[3] === 'string') {
-      // (userId, latitude, longitude, faceImageBase64)
-      payload = {
-        user_id: args[0],
-        latitude: args[1],
-        longitude: args[2],
-        face_image_base64: args[3],
-      };
-    } else {
-      // (latitude, longitude, faceImageBase64, userId)
-      payload = {
-        latitude: args[0],
-        longitude: args[1],
-        face_image_base64: args[2],
-        user_id: args[3] || undefined,
-      };
-    }
-
-    try {
-      const res = await apiClient.post('/attendance/check-in', payload);
-      return res.data;
-    } catch (err) {
-      if (err.response?.status === 404) {
-        const res = await apiClient.post('/api/attendance/check-in', payload);
-        return res.data;
-      }
-      throw err;
-    }
+  // Attendance
+  checkIn: async (data) => {
+    const res = await apiClient.post('/api/attendance/check-in', data);
+    return res.data;
   },
-
-  checkOut: async (...args) => {
-    let payload = {};
-    if (args.length === 1 && typeof args[0] === 'object') {
-      payload = args[0];
-    } else if (typeof args[0] === 'number' && typeof args[1] === 'number' && typeof args[2] === 'number') {
-      // (userId, latitude, longitude)
-      payload = {
-        user_id: args[0],
-        latitude: args[1],
-        longitude: args[2],
-      };
-    } else {
-      // (latitude, longitude, faceImageBase64, userId)
-      payload = {
-        latitude: args[0],
-        longitude: args[1],
-        face_image_base64: args[2] || undefined,
-        user_id: args[3] || undefined,
-      };
-    }
-
-    try {
-      const res = await apiClient.post('/attendance/check-out', payload);
-      return res.data;
-    } catch (err) {
-      if (err.response?.status === 404) {
-        const res = await apiClient.post('/api/attendance/check-out', payload);
-        return res.data;
-      }
-      throw err;
-    }
+  checkOut: async (data) => {
+    const res = await apiClient.post('/api/attendance/check-out', data);
+    return res.data;
   },
-  getHistory: async (employeeIdOrUserId) => {
-    try {
-      const res = await apiClient.get(`/attendance/history/${employeeIdOrUserId}`);
-      return res.data;
-    } catch (err) {
-      if (err.response?.status === 404) {
-        try {
-          const res = await apiClient.get(`/api/attendance/history/${employeeIdOrUserId}`);
-          return res.data;
-        } catch (subErr) {
-          const res = await apiClient.get(`/api/attendance/user/${employeeIdOrUserId}`);
-          return res.data;
-        }
-      }
-      throw err;
-    }
+  biometricPunch: async (data) => {
+    const res = await apiClient.post('/api/attendance/biometric-punch', data);
+    return res.data;
+  },
+  getHistory: async () => {
+    const res = await apiClient.get('/api/attendance/my-history');
+    return res.data;
+  },
+  getTodayStatus: async () => {
+    const res = await apiClient.get('/api/attendance/today-status');
+    return res.data;
   },
 
   // Leaves
-  applyLeave: async (userId, leaveType, startDate, endDate, reason) => {
-    const res = await apiClient.post('/api/leaves/apply', {
-      user_id: userId,
-      leave_type: leaveType,
-      start_date: startDate,
-      end_date: endDate,
-      reason,
-    });
+  getLeaveBalance: async () => {
+    const res = await apiClient.get('/api/leaves/balance');
     return res.data;
   },
-  getMyLeaves: async (userId) => {
-    const res = await apiClient.get(`/api/leaves/user/${userId}`);
+  applyLeave: async (data) => {
+    const res = await apiClient.post('/api/leaves/apply', data);
+    return res.data;
+  },
+  getMyLeaves: async () => {
+    const res = await apiClient.get('/api/leaves/my-requests');
     return res.data;
   },
 
   // Payroll
-  getMyPayroll: async (userId) => {
-    const res = await apiClient.get(`/api/payroll/user/${userId}`);
+  getMyPayroll: async (month, year) => {
+    let url = '/api/payroll/my-slip';
+    const params = [];
+    if (month) params.push(`month=${month}`);
+    if (year) params.push(`year=${year}`);
+    if (params.length > 0) url += `?${params.join('&')}`;
+    const res = await apiClient.get(url);
     return res.data;
   },
 };

@@ -157,7 +157,9 @@ The attendance verification protocol mandates a strict **Dual-Factor Gate**:
   - *"How many leaves do I have left?"* ➡️ Real-time calculation of remaining casual and sick leaves.
   - *"What is my punctuality trust score?"* ➡️ Dynamic 300–900 credit-style score based on on-time arrival streak.
   - *"What are the office shift rules?"* ➡️ Shift hours (09:30 AM – 05:30 PM), 100m geofence rules, and grace periods.
-  - Admin queries: *"Today's attendance count"*, *"Who is late today?"*.
+  - **Admin Telemetry & Real-Time Auditing**:
+    - *"Who is late today?"* ➡️ Lists employee names, IDs, check-in timestamps, and late minutes.
+    - *"Today's Attendance Count"* ➡️ Full workforce breakdown (Total Staff, Present, On-Time, Late, Absent).
 - **Trilingual Fluency**: Speaks and understands **English**, **Hindi** (हिन्दी), and **Gujarati** (ગુજરાતી) with 1-tap quick suggestion chips.
 - **Zero-Friction UI**: Floating launcher bubble with animated Bot and Sparkles badge on both mobile client and admin web portal.
 

@@ -20,7 +20,7 @@ import { useTheme } from '../src/context/ThemeContext';
 export default function AttendanceHistoryScreen({
   user,
   token,
-  serverUrl = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.3:8000',
+  serverUrl = process.env.EXPO_PUBLIC_API_URL || 'https://ai-smart-attendance-system-2m55.onrender.com',
   onBack,
   navigation,
 }) {
@@ -34,7 +34,7 @@ export default function AttendanceHistoryScreen({
 
   // Authenticated employee identification
   const employeeId = user?.employee_id || user?.id || 'EMP001';
-  const cleanServerUrl = (serverUrl || process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.3:8000').replace(/\/+$/, '');
+  const cleanServerUrl = (serverUrl || process.env.EXPO_PUBLIC_API_URL || 'https://ai-smart-attendance-system-2m55.onrender.com').replace(/\/+$/, '');
 
   const fetchAttendanceHistory = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -51,20 +51,31 @@ export default function AttendanceHistoryScreen({
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(url, { ...options, signal: controller.signal });
+        return res;
+      } finally {
+        clearTimeout(id);
+      }
+    };
+
     try {
       // Primary Endpoint: GET /attendance/history/{employee_id}
       let endpoint = `${cleanServerUrl}/attendance/history/${employeeId}`;
       let response;
 
       try {
-        response = await fetch(endpoint, { method: 'GET', headers });
+        response = await fetchWithTimeout(endpoint, { method: 'GET', headers }, 10000);
       } catch (netErr) {
         // Fallback port 3000 proxy if direct 8000 port was blocked
         if (cleanServerUrl.includes(':8000')) {
           const fallbackBase = cleanServerUrl.replace(':8000', ':3000');
           endpoint = `${fallbackBase}/attendance/history/${employeeId}`;
           try {
-            response = await fetch(endpoint, { method: 'GET', headers });
+            response = await fetchWithTimeout(endpoint, { method: 'GET', headers }, 8000);
           } catch (fbErr) {
             throw netErr;
           }
@@ -76,21 +87,21 @@ export default function AttendanceHistoryScreen({
       // If 404 on direct prefix, try /api/attendance/history/{employee_id} or user_id fallback
       if (response && response.status === 404) {
         let altEndpoint = `${cleanServerUrl}/api/attendance/history/${employeeId}`;
-        let altRes = await fetch(altEndpoint, { method: 'GET', headers }).catch(() => null);
+        let altRes = await fetchWithTimeout(altEndpoint, { method: 'GET', headers }, 8000).catch(() => null);
         if (altRes && altRes.ok) {
           response = altRes;
         } else if (user?.id) {
           let userEndpoint = `${cleanServerUrl}/api/attendance/user/${user.id}`;
-          let userRes = await fetch(userEndpoint, { method: 'GET', headers }).catch(() => null);
+          let userRes = await fetchWithTimeout(userEndpoint, { method: 'GET', headers }, 8000).catch(() => null);
           if (userRes && userRes.ok) {
             response = userRes;
           }
         }
       }
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `Server returned error (${response.status})`);
+      if (!response || !response.ok) {
+        const errorData = response ? await response.json().catch(() => ({})) : {};
+        throw new Error(errorData.detail || `Server returned error (${response?.status || 'No Response'})`);
       }
 
       const data = await response.json();
@@ -100,8 +111,11 @@ export default function AttendanceHistoryScreen({
         setRecords([]);
       }
     } catch (err) {
+      const isAbort = err.name === 'AbortError' || err.message?.toLowerCase().includes('abort');
       setErrorMsg(
-        err.message || 'Unable to load attendance history. Check server connection.'
+        isAbort
+          ? 'Connection timed out. Server may be waking up, please tap Retry.'
+          : (err.message || 'Unable to load attendance history.')
       );
     } finally {
       setIsLoading(false);
@@ -318,13 +332,13 @@ export default function AttendanceHistoryScreen({
 
       {/* Employee Context Subheader */}
       <View style={styles.employeeBanner}>
-        <View>
-          <Text style={styles.employeeName}>{user?.full_name || 'Workforce Member'}</Text>
-          <Text style={styles.employeeCode}>
+        <View style={{ flex: 1, marginRight: 10 }}>
+          <Text style={styles.employeeName} numberOfLines={1}>{user?.full_name || 'Workforce Member'}</Text>
+          <Text style={styles.employeeCode} numberOfLines={1}>
             ID: <Text style={styles.highlight}>{employeeId}</Text> | Department: {user?.department || 'Computer Applications'}
           </Text>
         </View>
-        <View style={styles.roleTag}>
+        <View style={[styles.roleTag, { flexShrink: 0 }]}>
           <Text style={styles.roleTagText}>{(user?.role || 'employee').toUpperCase()}</Text>
         </View>
       </View>

@@ -17,6 +17,7 @@ export default function LanguageSelector({ style, compact = false }) {
       <TouchableOpacity
         style={[
           styles.triggerBtn,
+          compact && { paddingHorizontal: 7, paddingVertical: 6 },
           {
             backgroundColor: isDark ? colors.surfaceSubtle : colors.primaryLight,
             borderColor: colors.border,

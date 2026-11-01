@@ -38,8 +38,8 @@ const OFFICE_LAT = 23.002217;
 const OFFICE_LON = 72.455763;
 const GEOFENCE_RADIUS = 100.0; // Allowed radius in meters
 
-// Default backend API URL configured for local Wi-Fi LAN IP (192.168.1.3)
-const LAN_API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.3:8000';
+// Production backend API URL with fallback
+const LAN_API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ai-smart-attendance-system-2m55.onrender.com';
 const DEFAULT_SERVER_URL = Platform.select({
   android: LAN_API_URL, // Physical phone or emulator connected to PC Wi-Fi
   ios: LAN_API_URL,
@@ -503,6 +503,7 @@ function CheckInDashboard({
 
   // Camera & Check-In Processing State
   const [cameraActive, setCameraActive] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
   const [cameraFacing, setCameraFacing] = useState('front');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
@@ -574,6 +575,7 @@ function CheckInDashboard({
 
   // Biometric Face Enrollment State
   const [enrollModalVisible, setEnrollModalVisible] = useState(false);
+  const [enrollCameraReady, setEnrollCameraReady] = useState(false);
   const [isEnrolling, setIsEnrolling] = useState(false);
   const [enrollFacing, setEnrollFacing] = useState('front');
   const enrollCameraRef = useRef(null);
@@ -612,6 +614,7 @@ function CheckInDashboard({
       if (onUpdateUser) {
         onUpdateUser({ has_face_registered: true });
       }
+      setEnrollCameraReady(false);
       setEnrollModalVisible(false);
       Alert.alert(
         t('faceSavedTitle'),
@@ -780,6 +783,7 @@ function CheckInDashboard({
         });
       }
 
+      setCameraReady(false);
       setCameraActive(false);
 
       if (!currentCoords) {
@@ -873,6 +877,7 @@ function CheckInDashboard({
       });
       fetchTodayStatus();
     } catch (err) {
+      setCameraReady(false);
       setCameraActive(false);
       const isNetworkErr = 
         err.message?.toLowerCase().includes('network') ||
@@ -935,7 +940,8 @@ function CheckInDashboard({
       });
 
       if (!result.canceled && result.assets && result.assets[0]?.base64) {
-        setCameraActive(false);
+        setCameraReady(false);
+      setCameraActive(false);
         await handleCaptureAndCheckIn(result.assets[0].base64);
       }
     } catch (e) {
@@ -1007,8 +1013,15 @@ function CheckInDashboard({
     try {
       // 1. Check Biometric Hardware Support
       const bio = await checkBiometricSupport();
-      if (!bio.isAvailable) {
+      if (!bio.isAvailable && !bio.hasHardware) {
         Alert.alert('Fingerprint Sensor', t('fingerprintNotAvailable'));
+        return;
+      }
+      if (!bio.isEnrolled) {
+        Alert.alert(
+          'Biometrics Not Enrolled',
+          'Please ensure a fingerprint or screen lock is enrolled in your phone settings.'
+        );
         return;
       }
 
@@ -1155,19 +1168,19 @@ function CheckInDashboard({
     >
       {/* Top Employee Profile & Header */}
       <View style={styles.topBar}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, marginRight: 8 }}>
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarText}>
               {user?.full_name ? user.full_name.charAt(0).toUpperCase() : 'E'}
             </Text>
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.greetingText} numberOfLines={1}>
               {getGreeting()}, {user?.full_name?.split(' ')[0] || 'Employee'} 👋
             </Text>
             <View style={styles.badgeRow}>
               <Text style={styles.empId}>{user?.employee_id || 'EMP001'}</Text>
-              <View style={styles.roleBadge}>
+              <View style={[styles.roleBadge, { flexShrink: 0 }]}>
                 <Text style={styles.roleBadgeText}>{(user?.role || 'employee').toUpperCase()}</Text>
               </View>
             </View>
@@ -1178,22 +1191,13 @@ function CheckInDashboard({
         <View style={styles.topBarRight}>
           <LanguageSelector compact={true} />
           <TouchableOpacity
-            style={styles.chatbotTopBtn}
-            onPress={onOpenChatbot}
-            activeOpacity={0.7}
-            accessibilityLabel="AI Assistant"
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Bot size={20} color="#38bdf8" />
-          </TouchableOpacity>
-          <TouchableOpacity
             style={styles.notificationBtn}
             onPress={() => setNotificationsVisible(true)}
             activeOpacity={0.7}
             accessibilityLabel="Notifications"
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Bell size={20} color={colors.textPrimary} />
+            <Bell size={18} color={colors.textPrimary} />
             {offlineCount > 0 && <View style={styles.notificationDot} />}
           </TouchableOpacity>
           <TouchableOpacity
@@ -1204,7 +1208,7 @@ function CheckInDashboard({
             accessibilityLabel={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            {isDark ? <Sun size={20} color="#FBBF24" /> : <Moon size={20} color={colors.primary} />}
+            {isDark ? <Sun size={18} color="#FBBF24" /> : <Moon size={18} color={colors.primary} />}
           </TouchableOpacity>
         </View>
       </View>
@@ -1620,21 +1624,35 @@ function CheckInDashboard({
       {cameraActive && (
         <Modal
           visible={true}
-          animationType="slide"
+          animationType="none"
           statusBarTranslucent={true}
+          onShow={() => {
+            setTimeout(() => setCameraReady(true), 150);
+          }}
           onRequestClose={() => {
-            if (!isProcessing) setCameraActive(false);
+            if (!isProcessing) {
+              setCameraReady(false);
+              setCameraReady(false);
+      setCameraActive(false);
+            }
           }}
         >
           <View style={styles.fullScreenCamera}>
-            <CameraView
-              key={cameraFacing}
-              ref={cameraRef}
-              style={StyleSheet.absoluteFillObject}
-              facing={cameraFacing}
-              mode="picture"
-              autofocus="on"
-            />
+            {cameraReady ? (
+              <CameraView
+                key={cameraFacing}
+                ref={cameraRef}
+                style={[StyleSheet.absoluteFillObject, { flex: 1, width: '100%', height: '100%' }]}
+                facing={cameraFacing}
+                mode="picture"
+                autoFocus="on"
+              />
+            ) : (
+              <View style={[StyleSheet.absoluteFillObject, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#000000' }]}>
+                <ActivityIndicator size="large" color="#38bdf8" />
+                <Text style={{ color: '#ffffff', marginTop: 12, fontSize: 13, fontWeight: '600' }}>Starting Camera...</Text>
+              </View>
+            )}
 
             {/* Centered Target Face Oval Reticle & Liveness Feedback */}
             <View style={styles.fullScreenReticleContainer} pointerEvents="none">
@@ -1657,7 +1675,11 @@ function CheckInDashboard({
               <View style={styles.cameraTopRow}>
                 <TouchableOpacity
                   style={styles.cameraOverlayBtn}
-                  onPress={() => setCameraActive(false)}
+                  onPress={() => {
+                    setCameraReady(false);
+                    setCameraReady(false);
+      setCameraActive(false);
+                  }}
                   disabled={isProcessing}
                   activeOpacity={0.7}
                 >
@@ -1736,21 +1758,34 @@ function CheckInDashboard({
       {enrollModalVisible && (
         <Modal
           visible={true}
-          animationType="slide"
+          animationType="none"
           statusBarTranslucent={true}
+          onShow={() => {
+            setTimeout(() => setEnrollCameraReady(true), 150);
+          }}
           onRequestClose={() => {
-            if (!isEnrolling) setEnrollModalVisible(false);
+            if (!isEnrolling) {
+              setEnrollCameraReady(false);
+              setEnrollModalVisible(false);
+            }
           }}
         >
           <View style={styles.fullScreenCamera}>
-            <CameraView
-              key={enrollFacing}
-              ref={enrollCameraRef}
-              style={StyleSheet.absoluteFillObject}
-              facing={enrollFacing}
-              mode="picture"
-              autofocus="on"
-            />
+            {enrollCameraReady ? (
+              <CameraView
+                key={enrollFacing}
+                ref={enrollCameraRef}
+                style={[StyleSheet.absoluteFillObject, { flex: 1, width: '100%', height: '100%' }]}
+                facing={enrollFacing}
+                mode="picture"
+                autoFocus="on"
+              />
+            ) : (
+              <View style={[StyleSheet.absoluteFillObject, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#000000' }]}>
+                <ActivityIndicator size="large" color="#38bdf8" />
+                <Text style={{ color: '#ffffff', marginTop: 12, fontSize: 13, fontWeight: '600' }}>Starting Camera...</Text>
+              </View>
+            )}
 
             {/* Centered Target Face Oval Reticle for Enrollment */}
             <View style={styles.fullScreenReticleContainer} pointerEvents="none">
@@ -1763,7 +1798,10 @@ function CheckInDashboard({
               <View style={styles.cameraTopRow}>
                 <TouchableOpacity
                   style={styles.cameraOverlayBtn}
-                  onPress={() => setEnrollModalVisible(false)}
+                  onPress={() => {
+                    setEnrollCameraReady(false);
+                    setEnrollModalVisible(false);
+                  }}
                   disabled={isEnrolling}
                   activeOpacity={0.7}
                 >
@@ -1800,7 +1838,10 @@ function CheckInDashboard({
               <View style={styles.cameraBottomActions}>
                 <TouchableOpacity
                   style={styles.cameraBottomCancelBtn}
-                  onPress={() => setEnrollModalVisible(false)}
+                  onPress={() => {
+                    setEnrollCameraReady(false);
+                    setEnrollModalVisible(false);
+                  }}
                   disabled={isEnrolling}
                   activeOpacity={0.7}
                 >
@@ -2413,13 +2454,13 @@ const createStyles = (colors, isDark) =>
   topBarRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginRight: 6,
+    gap: 6,
+    flexShrink: 0,
   },
   chatbotTopBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: isDark ? 'rgba(56, 189, 248, 0.14)' : 'rgba(14, 165, 233, 0.10)',
     borderWidth: 1,
     borderColor: 'rgba(56, 189, 248, 0.35)',
@@ -2428,11 +2469,11 @@ const createStyles = (colors, isDark) =>
   },
   chatbotFab: {
     position: 'absolute',
-    bottom: 84,
+    bottom: 95,
     right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: '#0284c7',
     alignItems: 'center',
     justifyContent: 'center',

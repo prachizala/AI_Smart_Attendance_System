@@ -21,7 +21,9 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
       ],
       "usesCleartextTraffic": true
     },
@@ -36,6 +38,12 @@
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "Allow Smart Attendance to verify office geofence radius during attendance."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceDetectorPermission": "Allow Smart Attendance to use biometrics."
         }
       ],
       "expo-secure-store",

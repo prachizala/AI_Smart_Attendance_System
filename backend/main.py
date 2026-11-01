@@ -306,8 +306,81 @@ def get_my_profile(current_user: models.User = Depends(get_current_user)):
     return _format_user(current_user)
 
 
+def seed_default_users(db: Session) -> int:
+    """Populates essential production demo users on fresh database startup."""
+    if db.query(models.User).count() > 0:
+        return 0
+
+    admin = models.User(
+        employee_id="ADMIN01",
+        full_name="Dr. S. K. Kulkarni (HOD)",
+        email="hod@college.edu",
+        phone="9825100001",
+        department="Administration",
+        designation="HOD & Professor",
+        hashed_password=get_password_hash("admin123"),
+        role="admin",
+        base_salary=85000.0,
+        is_active=True,
+        has_face_registered=False
+    )
+    db.add(admin)
+
+    emp1 = models.User(
+        employee_id="EMP001",
+        full_name="Zala Prachi",
+        email="prachizala2003@gmail.com",
+        phone="7698951982",
+        department="Computer Applications",
+        designation="Software Engineer",
+        hashed_password=get_password_hash("secret123"),
+        role="employee",
+        base_salary=45000.0,
+        is_active=True,
+        has_face_registered=True
+    )
+    db.add(emp1)
+
+    demo_names = [
+        ("EMP002", "Aarav Patel", "aarav.patel@college.edu"),
+        ("EMP003", "Priya Sharma", "priya.sharma@college.edu"),
+        ("EMP004", "Rohan Mehta", "rohan.mehta@college.edu"),
+        ("EMP005", "Ananya Iyer", "ananya.iyer@college.edu"),
+        ("EMP006", "Vikram Singh", "vikram.singh@college.edu"),
+    ]
+    for eid, name, mail in demo_names:
+        db.add(models.User(
+            employee_id=eid,
+            full_name=name,
+            email=mail,
+            phone="9825100099",
+            department="Computer Applications",
+            designation="Faculty & Researcher",
+            hashed_password=get_password_hash("secret123"),
+            role="employee",
+            base_salary=42000.0,
+            is_active=True,
+            has_face_registered=True
+        ))
+
+    db.commit()
+    return db.query(models.User).count()
+
+
+@app.get("/api/system/seed", tags=["System"])
+def system_seed(db: Session = Depends(get_db)):
+    """Initializes primary admin and demo employees if database is newly provisioned."""
+    created = seed_default_users(db)
+    total = db.query(models.User).count()
+    return {"status": "ok", "seeded": created, "total_users": total}
+
+
 @app.post("/api/auth/login", response_model=TokenResponse, tags=["Auth"])
 def login(creds: UserLogin, db: Session = Depends(get_db)):
+    # Auto-seed if first boot on fresh cloud database
+    if db.query(models.User).count() == 0:
+        seed_default_users(db)
+
     identifier = creds.identifier.strip()
 
     # Aliases for convenience: 'admin' or 'administrator' maps to system admin

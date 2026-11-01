@@ -1285,6 +1285,154 @@ def get_attendance_leaderboard(
     }
 
 
+
+# ==========================================
+# Domain 8: Dynamic Anti-Screenshot QR Kiosk
+# ==========================================
+import hmac
+import hashlib
+import time
+
+class KioskPunchPayload(BaseModel):
+    user_id: Optional[int] = None
+    token: str
+    latitude: float = Field(..., ge=-90.0, le=90.0)
+    longitude: float = Field(..., ge=-180.0, le=180.0)
+
+
+@app.get("/api/attendance/kiosk/token", tags=["QR Kiosk"])
+@app.get("/attendance/kiosk/token", tags=["QR Kiosk"])
+def get_kiosk_rotating_token():
+    """
+    Generates a cryptographically signed dynamic QR token refreshed every 30 seconds.
+    Renders on gate kiosks to defend against screenshot and photo-forwarding proxy attendance.
+    """
+    t_slice = int(time.time() // 30)
+    remaining_secs = 30 - int(time.time() % 30)
+    msg = f"SBS_KIOSK_GATE1_{t_slice}".encode()
+    token = hmac.new(SECRET_KEY.encode(), msg, hashlib.sha256).hexdigest()
+
+    return {
+        "kiosk_id": "GATE_01",
+        "campus": "SBS Campus, Ahmedabad",
+        "token": token,
+        "payload_string": f"SBS-QR:{token}:{t_slice}",
+        "expires_in_seconds": remaining_secs,
+        "interval_seconds": 30,
+        "server_time": datetime.now().isoformat()
+    }
+
+
+@app.post("/api/attendance/kiosk/verify-punch", response_model=AttendanceRecord, tags=["QR Kiosk"])
+@app.post("/attendance/kiosk/verify-punch", response_model=AttendanceRecord, tags=["QR Kiosk"])
+def verify_kiosk_punch(
+    payload: KioskPunchPayload,
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Verifies dynamic gate QR scan and marks biometric attendance.
+    Requires device within 100m geofence and valid unexpired 30s HMAC token.
+    """
+    from services.geofence import is_within_geofence, calculate_haversine_distance, OFFICE_LATITUDE, OFFICE_LONGITUDE, GEOFENCE_RADIUS_METERS
+
+    # 1. Resolve User
+    user = None
+    if payload.user_id:
+        user = db.query(models.User).filter(models.User.id == payload.user_id).first()
+    if not user and authorization and authorization.startswith("Bearer "):
+        try:
+            token_str = authorization.split(" ")[1]
+            token_data = jwt.decode(token_str, SECRET_KEY, algorithms=[ALGORITHM])
+            user = db.query(models.User).filter(models.User.id == int(token_data.get("sub"))).first()
+        except Exception:
+            pass
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    # 2. Verify Dynamic QR Token (Current or immediate previous 30s slice)
+    token_input = payload.token.strip()
+    if token_input.startswith("SBS-QR:"):
+        token_input = token_input.split(":")[1]
+
+    t_now = int(time.time() // 30)
+    valid_token = False
+    for s in [t_now, t_now - 1]:
+        expected = hmac.new(SECRET_KEY.encode(), f"SBS_KIOSK_GATE1_{s}".encode(), hashlib.sha256).hexdigest()
+        if hmac.compare_digest(token_input, expected):
+            valid_token = True
+            break
+
+    if not valid_token:
+        raise HTTPException(
+            status_code=400,
+            detail="Expired or Invalid Gate QR Code. Please scan the current live QR code on the kiosk screen."
+        )
+
+    # 3. Geofence Verification (100m rule)
+    dist = calculate_haversine_distance(payload.latitude, payload.longitude, OFFICE_LATITUDE, OFFICE_LONGITUDE)
+    if dist > GEOFENCE_RADIUS_METERS:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Geofence breach: You are {dist:.1f}m away from SBS Campus (Allowed: {GEOFENCE_RADIUS_METERS}m)."
+        )
+
+    # 4. Anti-Duplicate Check
+    today = date.today()
+    existing = db.query(models.Attendance).filter(
+        models.Attendance.user_id == user.id,
+        models.Attendance.date == today
+    ).first()
+
+    if existing and existing.check_in:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Attendance already marked for today at {existing.check_in.strftime('%I:%M %p')}."
+        )
+
+    now = datetime.now()
+    late_cutoff = datetime.combine(today, datetime.strptime("09:30", "%H:%M").time())
+    is_late = now > late_cutoff
+    late_mins = int((now - late_cutoff).total_seconds() / 60) if is_late else 0
+    att_status = "late" if is_late else "present"
+
+    if existing:
+        record = existing
+        record.check_in = now
+        record.face_verified = True
+        record.location_verified = True
+        record.verification_method = "qr_kiosk"
+        record.distance_meters = round(dist, 1)
+        record.latitude = payload.latitude
+        record.longitude = payload.longitude
+        record.status = att_status
+        record.late_minutes = late_mins
+    else:
+        record = models.Attendance(
+            user_id=user.id,
+            date=today,
+            check_in=now,
+            face_verified=True,
+            location_verified=True,
+            verification_method="qr_kiosk",
+            distance_meters=round(dist, 1),
+            latitude=payload.latitude,
+            longitude=payload.longitude,
+            status=att_status,
+            late_minutes=late_mins
+        )
+        db.add(record)
+
+    db.commit()
+    db.refresh(record)
+
+    # Auto-populate for response schema
+    record.employee_id = user.employee_id
+    record.employee_name = user.full_name
+    return record
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

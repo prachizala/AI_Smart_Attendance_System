@@ -1,7 +1,8 @@
-import React from 'react';
-import { Users, UserCheck, Clock, UserX, CalendarOff, MapPin, CheckCircle2, XCircle, Download, Printer } from 'lucide-react';
+import React, { useState } from 'react';
+import { Users, UserCheck, Clock, UserX, CalendarOff, MapPin, CheckCircle2, XCircle, Download, Printer, QrCode } from 'lucide-react';
 import GeofenceMap from '../components/GeofenceMap';
 import PunctualityLeaderboard from '../components/PunctualityLeaderboard';
+import QRKioskModal from '../components/QRKioskModal';
 
 export default function DashboardPage({ stats, todayLogs, isLoading }) {
   const mapPunches = (todayLogs || []).map((log, idx) => ({
@@ -64,6 +65,8 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
   const handlePrintReport = () => {
     window.print();
   };
+
+  const [showQRKiosk, setShowQRKiosk] = useState(false);
 
   return (
     <div className="space-y-6 transition-colors duration-300">
@@ -130,6 +133,14 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Print Sheet</span>
+            </button>
+            <button
+              onClick={() => setShowQRKiosk(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+              title="Launch Dynamic Anti-Screenshot Gate QR Kiosk"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              <span>Gate Kiosk QR</span>
             </button>
             <span className="hidden md:inline-block text-xs bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 px-3 py-1 rounded-full border border-indigo-200 dark:border-indigo-800 font-mono font-medium">
               Radius: 100m
@@ -213,6 +224,9 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
           </table>
         </div>
       </div>
+
+      {/* Dynamic Anti-Screenshot Gate QR Kiosk Modal */}
+      <QRKioskModal isOpen={showQRKiosk} onClose={() => setShowQRKiosk(false)} />
     </div>
   );
 }

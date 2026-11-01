@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { Calculator, Calendar, Info, CheckCircle } from 'lucide-react';
+import { Calculator, Calendar, Info, CheckCircle, FileText } from 'lucide-react';
 import { adminApi } from '../api/adminClient';
+import PayslipModal from '../components/PayslipModal';
 
 export default function PayrollPage({ payrolls, onReload }) {
   const [month, setMonth] = useState(10);
   const [year, setYear] = useState(2026);
   const [isGenerating, setIsGenerating] = useState(false);
   const [message, setMessage] = useState('');
+  const [selectedPayslip, setSelectedPayslip] = useState(null);
+  const [loadingPayslipId, setLoadingPayslipId] = useState(null);
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -19,6 +22,24 @@ export default function PayrollPage({ payrolls, onReload }) {
       alert('Error generating payroll: ' + (err.response?.data?.detail || err.message));
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleViewPayslip = async (payrollId) => {
+    setLoadingPayslipId(payrollId);
+    try {
+      const res = await fetch(`/api/reports/payroll/payslip-data/${payrollId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('admin_token') || ''}`
+        }
+      });
+      if (!res.ok) throw new Error('Failed to load payslip data');
+      const data = await res.json();
+      setSelectedPayslip(data);
+    } catch (err) {
+      alert('Could not open payslip: ' + err.message);
+    } finally {
+      setLoadingPayslipId(null);
     }
   };
 
@@ -102,6 +123,7 @@ export default function PayrollPage({ payrolls, onReload }) {
                 <th className="py-3.5 px-4">Paid Leaves</th>
                 <th className="py-3.5 px-4">Calculated Net Pay</th>
                 <th className="py-3.5 px-4">Payment Status</th>
+                <th className="py-3.5 px-4 text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-xs">
@@ -137,11 +159,22 @@ export default function PayrollPage({ payrolls, onReload }) {
                         {p.status}
                       </span>
                     </td>
+                    <td className="py-3.5 px-4 text-center">
+                      <button
+                        onClick={() => handleViewPayslip(p.id)}
+                        disabled={loadingPayslipId === p.id}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-bold text-xs rounded-xl border border-indigo-200 dark:border-indigo-800 transition shadow-2xs"
+                        title="View Official Salary Payslip"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>{loadingPayslipId === p.id ? 'Loading...' : 'Payslip'}</span>
+                      </button>
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-slate-400 dark:text-slate-500">
+                  <td colSpan={8} className="py-10 text-center text-slate-400 dark:text-slate-500">
                     No payroll records generated yet. Click "Generate Payroll" above.
                   </td>
                 </tr>
@@ -150,6 +183,14 @@ export default function PayrollPage({ payrolls, onReload }) {
           </table>
         </div>
       </div>
+
+      {/* Official Payslip Statement Modal */}
+      {selectedPayslip && (
+        <PayslipModal
+          payslipData={selectedPayslip}
+          onClose={() => setSelectedPayslip(null)}
+        />
+      )}
     </div>
   );
 }

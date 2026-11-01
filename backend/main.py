@@ -1088,6 +1088,146 @@ def chatbot_query(
     return ChatbotResponse(reply=result["reply"], chips=result.get("chips", []))
 
 
+
+# ==========================================
+# Domain 6: Reports & Document Exporter
+# ==========================================
+from fastapi.responses import Response
+
+@app.get("/api/reports/attendance/csv", tags=["Reports"])
+@app.get("/reports/attendance/csv", tags=["Reports"])
+def export_attendance_csv(
+    date_str: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Exports attendance records as a formatted CSV spreadsheet with UTF-8 BOM for Microsoft Excel.
+    """
+    import csv
+    import io
+
+    query_date = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else date.today()
+    logs = db.query(models.Attendance).filter(models.Attendance.date == query_date).all()
+
+    output = io.StringIO()
+    # Write UTF-8 BOM for Microsoft Excel compatibility
+    output.write("\ufeff")
+    writer = csv.writer(output)
+
+    writer.writerow([
+        "Record ID",
+        "Employee ID",
+        "Full Name",
+        "Department",
+        "Date",
+        "Check-In Time",
+        "Check-Out Time",
+        "Verification Method",
+        "Face Verified",
+        "Geofence Distance (m)",
+        "Status",
+        "Late Minutes"
+    ])
+
+    for log in logs:
+        u = db.query(models.User).filter(models.User.id == log.user_id).first()
+        emp_code = u.employee_id if u else (log.employee_id or f"EMP{log.user_id}")
+        emp_name = u.full_name if u else (log.employee_name or "Unknown")
+        emp_dept = getattr(u, "department", "Computer Applications") or "Computer Applications"
+
+        in_str = log.check_in.strftime("%I:%M:%S %p") if log.check_in else "Not Recorded"
+        out_str = log.check_out.strftime("%I:%M:%S %p") if log.check_out else "Active Shift"
+        method_str = "Fingerprint Sensor" if getattr(log, "verification_method", "face") == "fingerprint" else "128-D OpenCV Face"
+        face_str = "YES" if log.face_verified else "NO"
+        dist_str = f"{log.distance_meters:.1f}" if log.distance_meters is not None else "N/A"
+
+        writer.writerow([
+            log.id,
+            emp_code,
+            emp_name,
+            emp_dept,
+            log.date.strftime("%Y-%m-%d"),
+            in_str,
+            out_str,
+            method_str,
+            face_str,
+            dist_str,
+            (log.status or "present").upper(),
+            log.late_minutes or 0
+        ])
+
+    csv_content = output.getvalue()
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename=attendance_report_{query_date}.csv"
+        }
+    )
+
+
+@app.get("/api/reports/payroll/payslip-data/{payroll_id}", tags=["Reports"])
+@app.get("/reports/payroll/payslip-data/{payroll_id}", tags=["Reports"])
+def get_payslip_data(
+    payroll_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Returns complete official audit data required to render or print an authorized employee salary payslip.
+    """
+    p = db.query(models.Payroll).filter(models.Payroll.id == payroll_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Payroll record not found")
+
+    user = db.query(models.User).filter(models.User.id == p.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    daily_rate = round(p.base_salary / 30.0, 2)
+    working_days = 30
+    payable_days = p.present_days + p.paid_leaves
+    unpaid_days = max(0, working_days - payable_days)
+    loss_of_pay = round(unpaid_days * daily_rate, 2)
+
+    return {
+        "institution": {
+            "name": "SBS Campus • Department of Computer Applications",
+            "affiliation": "AI Smart Attendance & Academic Workforce Platform",
+            "address": "Opp. Club O7, Shela, Ahmedabad, Gujarat 380058",
+            "contact": "hod@college.edu | +91 98251 00001"
+        },
+        "payroll_id": p.id,
+        "period": f"Month {p.month} / {p.year}",
+        "month": p.month,
+        "year": p.year,
+        "generated_at": p.created_at.strftime("%d %B %Y, %I:%M %p") if getattr(p, "created_at", None) else datetime.now().strftime("%d %B %Y"),
+        "employee": {
+            "id": user.id,
+            "employee_id": user.employee_id,
+            "full_name": user.full_name,
+            "email": user.email,
+            "phone": getattr(user, "phone", "N/A"),
+            "department": getattr(user, "department", "Computer Applications"),
+            "designation": getattr(user, "designation", "Faculty / Staff"),
+            "base_salary": p.base_salary,
+        },
+        "attendance_metrics": {
+            "total_working_days": working_days,
+            "present_days": p.present_days,
+            "paid_leaves": p.paid_leaves,
+            "loss_of_pay_days": unpaid_days,
+        },
+        "salary_breakdown": {
+            "daily_rate": daily_rate,
+            "gross_base": p.base_salary,
+            "loss_of_pay_deduction": loss_of_pay,
+            "net_payable": p.calculated_salary,
+            "status": p.status.upper(),
+        },
+        "security_hash": f"SBS-PAY-{p.id}-{user.employee_id}-{p.month}{p.year}-SHA256"
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

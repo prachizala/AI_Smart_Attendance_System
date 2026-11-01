@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, UserCheck, Clock, UserX, CalendarOff, MapPin, CheckCircle2, XCircle } from 'lucide-react';
+import { Users, UserCheck, Clock, UserX, CalendarOff, MapPin, CheckCircle2, XCircle, Download, Printer } from 'lucide-react';
 import GeofenceMap from '../components/GeofenceMap';
 
 export default function DashboardPage({ stats, todayLogs, isLoading }) {
@@ -56,6 +56,14 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
     },
   ];
 
+  const handleExportCSV = () => {
+    window.location.href = '/api/reports/attendance/csv';
+  };
+
+  const handlePrintReport = () => {
+    window.print();
+  };
+
   return (
     <div className="space-y-6 transition-colors duration-300">
       {/* Metric Counters Grid */}
@@ -95,16 +103,34 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
 
       {/* Real-time Daily Attendance Table */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">Today's Real-Time Attendance Log</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Live timestamps with verified 128-D OpenCV face embeddings and Haversine GPS distances.
             </p>
           </div>
-          <span className="text-xs bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 px-3 py-1 rounded-full border border-indigo-200 dark:border-indigo-800 font-mono font-medium">
-            Radius Threshold: 100m
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportCSV}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+              title="Download Excel spreadsheet of today's attendance"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Export Excel</span>
+            </button>
+            <button
+              onClick={handlePrintReport}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition border border-slate-200 dark:border-slate-700 cursor-pointer"
+              title="Print daily attendance sheet"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print Sheet</span>
+            </button>
+            <span className="hidden md:inline-block text-xs bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 px-3 py-1 rounded-full border border-indigo-200 dark:border-indigo-800 font-mono font-medium">
+              Radius: 100m
+            </span>
+          </div>
         </div>
 
         <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">

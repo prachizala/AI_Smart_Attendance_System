@@ -150,6 +150,25 @@ The attendance verification protocol mandates a strict **Dual-Factor Gate**:
 - Visual progress bar on the mobile dashboard tracking active shift completion against the 8-hour workday standard.
 - Real-time hours and minutes counter with dynamic progress percentage and automatic overtime detection (`+Xh Ym`).
 
+### 📊 1-Click Attendance Excel Exporter & Official Employee Payslips
+- **UTF-8 Excel CSV Exporter**: 1-click export of complete monthly attendance logs with proper Excel BOM encoding for seamless Gujarati, Hindi, and English character rendering.
+- **Official Printable A4 Payslip Modal**: Detailed salary slips with institutional header (*SBS Campus*), verified working days, overtime earnings, PF/tax deductions, audit verification hash, and authorized signature seal.
+
+### 🏆 Gamified Workforce Punctuality Leaderboard & Star Badges
+- **Podium Ranking Display**: Visual Top-3 ranking podium (Gold, Silver, Bronze) highlighting best punctuality records.
+- **AI Punctuality & Trust Score**: 300 to 900 credit-style scoring evaluating on-time arrival ratio, geofence compliance, and streak.
+- **Tiered Honor Badges**: Dynamic classification into **Diamond**, **Gold**, and **Silver** punctuality clubs.
+
+### 📱 Dynamic Rotating Anti-Screenshot QR Kiosk with 30s HMAC Security
+- **30-Second Rolling HMAC-SHA256 Token**: Displays a cryptographic QR code on the admin kiosk monitor that automatically regenerates every 30 seconds.
+- **Anti-Screenshot & Anti-Forwarding Defense**: Static photos or forwarded screenshots of the QR code expire immediately, preventing remote proxy check-ins.
+- **Dual-Verification Gate**: Enforces that the employee is physically present in front of the gate kiosk display.
+
+### 📷 AI Face Registration Quality Meter (Biometric Diagnostic Engine)
+- **Computer Vision Diagnostics**: Analyzes enrollment photos using OpenCV for ambient luminance balance, focus/sharpness via Laplacian operator variance, and facial bounding box proportions.
+- **Interactive Biometric Score**: Provides real-time 0–100% quality scores with actionable feedback (*Optimal Lighting*, *Increase lighting*, *Move closer*).
+- **Direct 128-D Vector Enrollment**: Seamless 1-click extraction and registration of mathematical face vectors into the database.
+
 ### 🤖 Multilingual AI Attendance & Workforce Assistant Chatbot
 - **Interactive Conversational AI**: Dedicated AI assistant accessible across both mobile and admin web dashboards.
 - **Natural Language Query Engine**:

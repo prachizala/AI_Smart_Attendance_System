@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { UserPlus, Check, X, ShieldAlert, Users, Search } from 'lucide-react';
+import { UserPlus, Check, X, ShieldAlert, Users, Search, Camera } from 'lucide-react';
 import { adminApi } from '../api/adminClient';
 import PasswordInput from '../components/PasswordInput';
+import FaceEnrollmentModal from '../components/FaceEnrollmentModal';
 
 export default function EmployeesPage({ employees, onReload }) {
   const [showModal, setShowModal] = useState(false);
+  const [enrollFaceEmployee, setEnrollFaceEmployee] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState({
     employee_id: '',
@@ -76,13 +78,13 @@ export default function EmployeesPage({ employees, onReload }) {
               placeholder="Search employee..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-44 sm:w-56"
+              className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 w-44 sm:w-56"
             />
           </div>
 
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm"
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
           >
             <UserPlus className="w-4 h-4" />
             Add Employee
@@ -143,15 +145,19 @@ export default function EmployeesPage({ employees, onReload }) {
                       ₹{emp.base_salary?.toLocaleString()}
                     </td>
                     <td className="py-3.5 px-4">
-                      {emp.has_face_registered ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> 128-D Registered
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
-                          <ShieldAlert className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" /> Pending Enrollment
-                        </span>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => setEnrollFaceEmployee(emp)}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer transition hover:opacity-85 shadow-xs ${
+                          emp.has_face_registered
+                            ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                            : 'bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800'
+                        }`}
+                        title="Click to inspect face biometric quality and enroll photo"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        <span>{emp.has_face_registered ? '128-D Registered' : 'Enroll Face'}</span>
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -167,6 +173,17 @@ export default function EmployeesPage({ employees, onReload }) {
         </div>
       </div>
 
+      {/* Face Quality & Enrollment Modal */}
+      <FaceEnrollmentModal
+        employee={enrollFaceEmployee}
+        isOpen={!!enrollFaceEmployee}
+        onClose={() => setEnrollFaceEmployee(null)}
+        onSuccess={() => {
+          setEnrollFaceEmployee(null);
+          onReload();
+        }}
+      />
+
       {/* New Employee Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
@@ -175,7 +192,7 @@ export default function EmployeesPage({ employees, onReload }) {
               <h3 className="text-base font-bold text-slate-900 dark:text-white">Enroll New Employee</h3>
               <button
                 onClick={() => setShowModal(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -198,7 +215,7 @@ export default function EmployeesPage({ employees, onReload }) {
                   placeholder="e.g. EMP102"
                   value={formData.employee_id}
                   onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
-                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
@@ -212,7 +229,7 @@ export default function EmployeesPage({ employees, onReload }) {
                   placeholder="e.g. Rahul Sharma"
                   value={formData.full_name}
                   onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
@@ -224,7 +241,7 @@ export default function EmployeesPage({ employees, onReload }) {
                   placeholder="rahul@college.edu"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
@@ -253,7 +270,7 @@ export default function EmployeesPage({ employees, onReload }) {
                   onChange={(e) =>
                     setFormData({ ...formData, base_salary: parseFloat(e.target.value) || 0 })
                   }
-                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
@@ -261,14 +278,14 @@ export default function EmployeesPage({ employees, onReload }) {
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm disabled:opacity-50"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmitting ? 'Creating...' : 'Enroll Employee'}
                 </button>

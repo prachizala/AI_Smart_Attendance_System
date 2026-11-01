@@ -10,7 +10,7 @@ import BrandLogo from '../components/BrandLogo';
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState('ADMIN01');
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState('admin123');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [popupError, setPopupError] = useState(null); // { title: string, message: string, type: string }
@@ -61,9 +61,13 @@ export default function LoginPage() {
 
       const lower = rawDetail.toLowerCase();
 
-      if (lower.includes('password') || lower.includes('incorrect password')) {
+      if (!err.response && (lower.includes('network') || lower.includes('failed to fetch') || lower.includes('connection refused'))) {
+        title = t('serverErrorTitle') || 'Backend Server Offline';
+        message = 'Unable to reach backend API on port 8000. Please ensure the backend server is running.';
+        type = 'server';
+      } else if (lower.includes('password') || lower.includes('incorrect password')) {
         title = t('wrongPasswordTitle');
-        message = t('wrongPasswordMsg');
+        message = 'Incorrect password. Default administrator password is: admin123';
         type = 'password';
       } else if (
         lower.includes('invalid employee id') || 
@@ -71,7 +75,7 @@ export default function LoginPage() {
         lower.includes('identifier')
       ) {
         title = t('invalidIdTitle');
-        message = t('invalidIdMsg');
+        message = 'No administrator account found with this ID. Use ADMIN01 or admin.';
         type = 'identifier';
       } else if (lower.includes('access denied') || lower.includes('administrator role required') || lower.includes('employee accounts cannot access')) {
         title = t('accessDeniedTitle');
@@ -114,29 +118,24 @@ export default function LoginPage() {
                 <span className="font-extrabold text-base tracking-tight text-slate-900 dark:text-white">
                   {t('appTitle')}
                 </span>
-                <span className="text-[10px] uppercase font-bold tracking-widest bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
-                  {t('portalTitle')}
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-full">
+                  {t('adminPortalBadge')}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {t('portalSubtitle')}
+              <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
+                {t('appSubtitle')}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline font-medium">
-              {t('academicHeader')}
-            </span>
-            {/* Language Selector */}
             <LanguageSelector />
-            {/* Theme Toggle in top-right */}
             <ThemeToggle />
           </div>
         </div>
       </header>
 
-      {/* Login Card Container */}
+      {/* Central Login Card */}
       <main className="flex-1 flex items-center justify-center p-4 sm:p-6 relative z-10">
         {/* High-Visibility Error Popup Modal */}
         {popupError && (
@@ -146,7 +145,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setPopupError(null)}
-                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                 aria-label="Close"
               >
                 <X className="w-5 h-5" />
@@ -167,15 +166,30 @@ export default function LoginPage() {
                 {popupError.message}
               </p>
 
-              {/* Action Button */}
-              <button
-                type="button"
-                onClick={() => setPopupError(null)}
-                autoFocus
-                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold text-sm shadow-md shadow-red-600/25 transition transform active:scale-[0.99]"
-              >
-                {t('tryAgain')}
-              </button>
+              {/* Action Buttons */}
+              <div className="space-y-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIdentifier('ADMIN01');
+                    setPassword('admin123');
+                    setPopupError(null);
+                    setErrorMessage('');
+                  }}
+                  className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/25 transition cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                  <span>Use Demo Admin (ADMIN01 / admin123)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPopupError(null)}
+                  autoFocus
+                  className="w-full py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  {t('tryAgain')}
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -188,62 +202,57 @@ export default function LoginPage() {
               <div className="mb-4">
                 <BrandLogo size="xl" />
               </div>
-              <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                {t('adminAuth')}
-              </h1>
-              <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 mt-1 uppercase tracking-wider flex items-center justify-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" />
-                {t('authorizedWorkspace')}
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                {t('loginDescription')}
+              <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                {t('adminPortalTitle')}
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+                {t('adminPortalSub')}
               </p>
             </div>
 
-            {/* Session Expired Notice */}
-            {sessionExpiredMessage && !errorMessage && (
-              <div className="mb-6 p-3.5 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/70 rounded-2xl flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-300">
-                <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+            {/* Session Expiration Notice */}
+            {sessionExpiredMessage && (
+              <div className="mb-5 p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/80 flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-200 animate-in fade-in">
+                <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                 <span className="font-medium">{sessionExpiredMessage}</span>
               </div>
             )}
 
-            {/* Error Banner */}
-            {errorMessage ? (
-              <div className="mb-6 p-3.5 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800/70 rounded-2xl flex items-start gap-2.5 text-xs text-red-700 dark:text-red-300">
-                <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+            {/* Form Error Banner */}
+            {errorMessage && !popupError && (
+              <div className="mb-5 p-3.5 rounded-2xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800/80 flex items-start gap-2.5 text-xs text-red-700 dark:text-red-300 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
                 <span className="font-medium">{errorMessage}</span>
               </div>
-            ) : null}
+            )}
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Username / Admin ID */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Identifier Input (Employee ID or Email) */}
               <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                  {t('adminIdOrEmail')}
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                  {t('adminIdLabel')}
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
-                    <User className="w-4 h-4" />
-                  </div>
+                  <User className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     placeholder={t('adminIdPlaceholder')}
-                    className="w-full bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition shadow-xs"
+                    className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:bg-white dark:focus:bg-slate-800 transition font-mono"
                     autoComplete="username"
                     required
                   />
                 </div>
               </div>
 
-              {/* Password */}
+              {/* Password Input with Eye Toggle */}
               <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                  {t('password')}
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    {t('password')}
+                  </label>
+                </div>
                 <PasswordInput
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -257,7 +266,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-bold text-sm shadow-md shadow-indigo-600/25 transition-all duration-200 transform active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-bold text-sm shadow-md shadow-indigo-600/25 transition-all duration-200 transform active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
               >
                 {isLoading ? (
                   <>
@@ -270,11 +279,24 @@ export default function LoginPage() {
               </button>
             </form>
 
-            {/* Helper Notice */}
-            <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800/80 text-center">
+            {/* Helper Notice & 1-Click Demo Auto-fill */}
+            <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800/80 text-center space-y-2">
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                {t('standardDemoAdmin')} <code className="text-indigo-600 dark:text-indigo-400 font-bold font-mono">ADMIN01</code>
+                {t('standardDemoAdmin')} <code className="text-indigo-600 dark:text-indigo-400 font-bold font-mono">ADMIN01</code> &bull; Password: <code className="text-indigo-600 dark:text-indigo-400 font-bold font-mono">admin123</code>
               </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setIdentifier('ADMIN01');
+                  setPassword('admin123');
+                  setErrorMessage('');
+                  setPopupError(null);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60 transition cursor-pointer"
+              >
+                <Sparkles className="w-3 h-3 text-indigo-500" />
+                <span>Quick Fill Demo Admin Credentials</span>
+              </button>
             </div>
           </div>
         </div>

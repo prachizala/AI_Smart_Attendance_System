@@ -219,3 +219,104 @@ def add_attendance_watermark(
     out_buf = io.BytesIO()
     final_img.save(out_buf, format="JPEG", quality=85)
     return base64.b64encode(out_buf.getvalue()).decode("utf-8")
+
+def analyze_face_quality(image_input: Union[bytes, str, io.BytesIO, np.ndarray]) -> Dict[str, Any]:
+    """
+    Computes computer vision biometric quality metrics for enrollment photos:
+    1. Average Luminance / Lighting balance
+    2. Focus / Blur variance via Laplacian operator
+    3. Facial detection bounding box proportions
+    4. Overall enrollment quality score (0-100%) and Grade
+    """
+    rgb = decode_image_to_rgb(image_input)
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    h, w = gray.shape
+
+    # 1. Lighting analysis (0-255 luminance)
+    brightness = float(np.mean(gray))
+    if brightness < 40:
+        lighting_status = "Poor (Too Dark)"
+        lighting_score = 30
+    elif brightness > 225:
+        lighting_status = "Poor (Overexposed)"
+        lighting_score = 40
+    elif 60 <= brightness <= 190:
+        lighting_status = "Optimal Lighting ✓"
+        lighting_score = 100
+    else:
+        lighting_status = "Acceptable Lighting"
+        lighting_score = 75
+
+    # 2. Sharpness / Blur analysis (Laplacian variance)
+    blur_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+    if blur_var < 50:
+        sharpness_status = "Very Blurry ⚠️"
+        sharpness_score = 25
+    elif blur_var < 100:
+        sharpness_status = "Mildly Soft"
+        sharpness_score = 65
+    else:
+        sharpness_status = "Crisp & Sharp ✓"
+        sharpness_score = 100
+
+    # 3. Face Detection & Framing check
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(60, 60))
+
+    face_count = len(faces)
+    face_detected = face_count > 0
+    if face_count == 1:
+        fx, fy, fw, fh = faces[0]
+        face_area_ratio = (fw * fh) / (w * h)
+        if 0.08 <= face_area_ratio <= 0.85:
+            framing_status = "Well Centered ✓"
+            framing_score = 100
+        else:
+            framing_status = "Face Too Small or Too Close"
+            framing_score = 60
+    elif face_count > 1:
+        framing_status = "Multiple Faces Detected"
+        framing_score = 40
+    else:
+        framing_status = "No Face Detected"
+        framing_score = 0
+
+    # 4. Total Quality Score (Weighted calculation)
+    if not face_detected:
+        quality_score = 15
+        grade = "Rejected (No Face)"
+        is_acceptable = False
+    else:
+        quality_score = int((lighting_score * 0.35) + (sharpness_score * 0.35) + (framing_score * 0.30))
+        is_acceptable = quality_score >= 60
+        if quality_score >= 85:
+            grade = "Grade A (Optimal Enrollment)"
+        elif quality_score >= 70:
+            grade = "Grade B (Good Quality)"
+        elif quality_score >= 60:
+            grade = "Grade C (Acceptable)"
+        else:
+            grade = "Sub-optimal (Retake Recommended)"
+
+    return {
+        "quality_score": quality_score,
+        "grade": grade,
+        "is_acceptable": is_acceptable,
+        "face_detected": face_detected,
+        "face_count": face_count,
+        "lighting": {
+            "brightness_value": round(brightness, 1),
+            "status": lighting_status,
+            "score": lighting_score
+        },
+        "sharpness": {
+            "blur_variance": round(blur_var, 1),
+            "status": sharpness_status,
+            "score": sharpness_score
+        },
+        "framing": {
+            "status": framing_status,
+            "score": framing_score
+        }
+    }
+

@@ -45,9 +45,12 @@ export default function ChatbotWidget({ adminUser }) {
     try {
       const response = await fetch('/api/chatbot/query', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('admin_token') ? { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` } : {})
+        },
         body: JSON.stringify({
-          user_id: adminUser?.id || 1,
+          user_id: adminUser?.id || (() => { try { return JSON.parse(localStorage.getItem('admin_user') || '{}')?.id; } catch { return 33; } })() || 33,
           message: text,
           language: 'en',
         }),

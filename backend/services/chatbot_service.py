@@ -77,14 +77,98 @@ def process_chat_query(
     user_role = (user.role or "employee").lower()
     today = date.today()
 
-    # Pre-fetch today's record
+    # Pre-fetch today's record for this user
     today_rec = db.query(models.Attendance).filter(
         models.Attendance.user_id == user_id,
         models.Attendance.date == today
     ).first()
 
     # --------------------------------------------------------------------------
-    # INTENT 1: Today's Status / Check-In Query
+    # INTENT 0: ADMIN & WORKFORCE QUERIES (High Priority)
+    # --------------------------------------------------------------------------
+    is_workforce_query = (
+        user_role == "admin"
+        or any(k in text for k in ["who is", "who are", "count", "workforce", "kitne", "kon", "koni", "all staff", "attendance count"])
+    )
+
+    # Sub-intent 0A: Who is late query
+    if is_workforce_query and any(k in text for k in ["who is late", "who are late", "late today", "kon late", "koni late", "late kaun", "late employee"]):
+        today_late = db.query(models.Attendance).filter(
+            models.Attendance.date == today,
+            models.Attendance.status == "late"
+        ).all()
+
+        if today_late:
+            late_lines = []
+            for l in today_late:
+                u = db.query(models.User).filter(models.User.id == l.user_id).first()
+                emp_name = u.full_name if u else (l.employee_name or f"Employee #{l.user_id}")
+                emp_code = u.employee_id if u else "EMP"
+                punch_t = l.check_in.strftime("%I:%M %p") if l.check_in else "N/A"
+                mins = l.late_minutes or 0
+                late_lines.append(f"• {emp_name} ({emp_code}) — {punch_t} ({mins}m late)")
+
+            lines_str = "\n".join(late_lines)
+            if lang == "hi":
+                reply = f"Aaj late aane wale staff members ({len(today_late)}):\n{lines_str}\n\n(Office shift 09:30 AM se start hoti hai)"
+            elif lang == "gu":
+                reply = f"આજે મોડા આવેલા સ્ટાફ સભ્યો ({len(today_late)}):\n{lines_str}\n\n(ઓફિસ શિફ્ટ 09:30 AM થી શરૂ થાય છે)"
+            else:
+                reply = f"Employees marked late today ({len(today_late)}):\n{lines_str}\n\n(Official shift starts at 09:30 AM)"
+        else:
+            if lang == "hi":
+                reply = "Aaj koi bhi employee late nahi hai! Sabhi present staff members 09:30 AM se pehle on-time punch kar chuke hain. 🌟"
+            elif lang == "gu":
+                reply = "આજે કોઈ પણ કર્મચારી મોડા નથી! તમામ હાજર સ્ટાફ 09:30 AM પહેલા સમયસર આવી ગયા છે. 🌟"
+            else:
+                reply = "No employees are late today! All checked-in workforce members arrived on time before 09:30 AM. 🌟"
+
+        return {
+            "reply": reply,
+            "chips": ["Today's Attendance Count", "Shift Policy & Rules", "Leave Summary"],
+        }
+
+    # Sub-intent 0B: Attendance count / workforce summary
+    if is_workforce_query and any(k in text for k in ["attendance count", "count", "how many", "total present", "kitne log", "hajari count"]):
+        today_logs = db.query(models.Attendance).filter(models.Attendance.date == today).all()
+        total_present = len(today_logs)
+        on_time_count = sum(1 for l in today_logs if l.status == "present")
+        late_count = sum(1 for l in today_logs if l.status == "late")
+        users_count = db.query(models.User).filter(models.User.is_active == True, models.User.role != "admin").count()
+        absent_count = max(0, users_count - total_present)
+
+        if lang == "hi":
+            reply = (
+                f"📊 Aaj ki Attendance Telemetry:\n"
+                f"• Total Staff: {users_count}\n"
+                f"• Present Today: {total_present} ({on_time_count} On-Time, {late_count} Late)\n"
+                f"• Absent / Not Punched: {absent_count}\n"
+                f"• Biometrics: Dual AI (Face Scan 128-D & Fingerprint)"
+            )
+        elif lang == "gu":
+            reply = (
+                f"📊 આજની હાજરી વિગત:\n"
+                f"• કુલ સ્ટાફ: {users_count}\n"
+                f"• કુલ હાજર: {total_present} ({on_time_count} સમયસર, {late_count} મોડા)\n"
+                f"• ગેરહાજર / બાકી: {absent_count}\n"
+                f"• બાયોમેટ્રિક્સ: ડ્યુઅલ AI (Face Scan 128-D અને ફિંગરપ્રિન્ટ)"
+            )
+        else:
+            reply = (
+                f"📊 Today's Workforce Attendance Telemetry:\n"
+                f"• Total Staff: {users_count}\n"
+                f"• Present Today: {total_present} ({on_time_count} On-Time, {late_count} Late)\n"
+                f"• Absent / Not Punched: {absent_count}\n"
+                f"• Biometrics: Dual AI (128-D Face & Fingerprint)"
+            )
+
+        return {
+            "reply": reply,
+            "chips": ["Who is late today?", "Shift Policy & Rules", "Leave Summary"],
+        }
+
+    # --------------------------------------------------------------------------
+    # INTENT 1: Today's Status / Check-In Query (Self)
     # --------------------------------------------------------------------------
     if any(k in text for k in ["today", "aaj", "status", "check-in", "punch in", "punch out", "aaje"]):
         if today_rec and today_rec.check_in:
@@ -325,37 +409,6 @@ def process_chat_query(
         return {
             "reply": reply,
             "chips": ["Today Status", "Shift Rules", "Monthly Summary", "Trust Score"],
-        }
-
-    # --------------------------------------------------------------------------
-    # INTENT 7: Admin Specific Queries
-    # --------------------------------------------------------------------------
-    if user_role == "admin" and any(k in text for k in ["who", "absent", "attendance count", "log", "report", "kon"]):
-        today_logs = db.query(models.Attendance).filter(models.Attendance.date == today).all()
-        total_present = len(today_logs)
-        late_count = sum(1 for l in today_logs if l.status == "late")
-        users_count = db.query(models.User).filter(models.User.is_active == True).count()
-
-        if lang == "hi":
-            reply = (
-                f"Admin Daily Telemetry Report:\n"
-                f"• Total Registered Employees: {users_count}\n"
-                f"• Present Today: {total_present}\n"
-                f"• Late Arrivals Today: {late_count}\n"
-                f"• Absent / Not Punched: {max(0, users_count - total_present)}"
-            )
-        else:
-            reply = (
-                f"Admin Daily Workforce Summary:\n"
-                f"• Total Workforce: {users_count} employees\n"
-                f"• Present Today: {total_present}\n"
-                f"• Late Arrivals: {late_count}\n"
-                f"• Absent: {max(0, users_count - total_present)}"
-            )
-
-        return {
-            "reply": reply,
-            "chips": ["Shift Rules", "Leave Balance", "Monthly Summary"],
         }
 
     # --------------------------------------------------------------------------

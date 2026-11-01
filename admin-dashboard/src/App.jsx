@@ -16,7 +16,7 @@ import { adminApi } from './api/adminClient';
 function AdminWorkspaceLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   // Sidebar responsive states
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -138,7 +138,7 @@ function AdminWorkspaceLayout() {
         </footer>
 
         {/* AI Workforce Assistant Chatbot Widget */}
-        <ChatbotWidget adminUser={{ id: 1 }} />
+        <ChatbotWidget adminUser={user} />
       </div>
     </div>
   );

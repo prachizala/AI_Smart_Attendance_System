@@ -57,8 +57,7 @@ def _ensure_initial_seed():
                     designation="HOD & Professor",
                     role="admin",
                     base_salary=85000.0,
-                    is_active=True,
-                    has_face_registered=False
+                    is_active=True
                 )
                 db.add(admin_user)
 
@@ -72,8 +71,7 @@ def _ensure_initial_seed():
                     designation="Software Engineer",
                     role="employee",
                     base_salary=50000.0,
-                    is_active=True,
-                    has_face_registered=True
+                    is_active=True
                 )
                 db.add(emp1)
                 db.commit()
@@ -321,8 +319,7 @@ def seed_default_users(db: Session) -> int:
         hashed_password=get_password_hash("admin123"),
         role="admin",
         base_salary=85000.0,
-        is_active=True,
-        has_face_registered=False
+        is_active=True
     )
     db.add(admin)
 
@@ -336,8 +333,7 @@ def seed_default_users(db: Session) -> int:
         hashed_password=get_password_hash("secret123"),
         role="employee",
         base_salary=45000.0,
-        is_active=True,
-        has_face_registered=True
+        is_active=True
     )
     db.add(emp1)
 
@@ -359,8 +355,7 @@ def seed_default_users(db: Session) -> int:
             hashed_password=get_password_hash("secret123"),
             role="employee",
             base_salary=42000.0,
-            is_active=True,
-            has_face_registered=True
+            is_active=True
         ))
 
     db.commit()

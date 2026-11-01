@@ -5,22 +5,25 @@ export const API_BASE_URL = (() => {
     import.meta.env.VITE_API_URL ||
     import.meta.env.VITE_API_BASE_URL;
 
+  // 1. Explicit production / environment URL has highest priority
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0) {
+    return envUrl.trim().replace(/\/+$/, '');
+  }
+
+  // 2. Local development fallback
   if (typeof window !== 'undefined' && window.location) {
     const { hostname } = window.location;
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       return `http://${hostname}:8000`;
     }
-    if (hostname) {
-      return `http://${hostname}:8000`;
-    }
   }
 
-  return envUrl || 'http://192.168.1.2:8000';
+  return 'http://localhost:8000';
 })();
 
 const adminClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -60,23 +63,22 @@ adminClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Automatic Response Interceptor: Catches 401/403 and dispatches session expiration
+// Response Interceptor: Handle 401 Unauthorized globally
 adminClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-      const isLoginEndpoint = error.config?.url?.includes('/api/auth/login');
-      if (!isLoginEndpoint && typeof window !== 'undefined') {
-        localStorage.removeItem('admin_token');
-        localStorage.removeItem('admin_user');
-        window.dispatchEvent(
-          new CustomEvent('auth:expired', {
-            detail:
-              error.response.status === 403
-                ? 'Access denied: Admin privileges required.'
-                : 'Session expired or invalid. Please sign in again.',
-          })
-        );
+    if (error.response && error.response.status === 401) {
+      if (typeof window !== 'undefined') {
+        const isLoginAttempt = error.config?.url?.includes('/api/auth/login');
+        if (!isLoginAttempt) {
+          // Token is expired or revoked during an authenticated operation
+          setAdminToken(null);
+          localStorage.removeItem('admin_user');
+          const event = new CustomEvent('auth:expired', {
+            detail: error.response?.data?.detail || 'Session expired. Please log in again.'
+          });
+          window.dispatchEvent(event);
+        }
       }
     }
     return Promise.reject(error);
@@ -89,64 +91,67 @@ export const adminApi = {
     const res = await adminClient.post('/api/auth/login', { identifier, password });
     return res.data;
   },
-
   getMe: async () => {
     const res = await adminClient.get('/api/auth/me');
     return res.data;
   },
 
-  // Analytics & Today's logs
-  getStats: async () => {
-    const res = await adminClient.get('/api/attendance/stats');
-    return res.data;
-  },
-  getTodayAttendance: async () => {
-    const res = await adminClient.get('/api/attendance/today');
-    return res.data;
-  },
-
   // Employees
   getEmployees: async () => {
-    const res = await adminClient.get('/api/auth/users');
+    const res = await adminClient.get('/api/employees');
     return res.data;
   },
   createEmployee: async (data) => {
-    const res = await adminClient.post('/api/auth/register', data);
+    const res = await adminClient.post('/api/employees', data);
     return res.data;
   },
 
-  // Leaves
-  getLeaves: async () => {
-    const res = await adminClient.get('/api/leaves/all');
+  // Attendance
+  getTodayStats: async () => {
+    const res = await adminClient.get('/api/attendance/today-stats');
     return res.data;
   },
-  getPendingLeaves: async () => {
-    const res = await adminClient.get('/api/admin/leaves/pending');
+  getAttendanceLogs: async (date = null) => {
+    const url = date ? `/api/attendance/logs?date=${date}` : '/api/attendance/logs';
+    const res = await adminClient.get(url);
     return res.data;
   },
-  reviewLeave: async (leaveId, status, remarks = '') => {
-    const res = await adminClient.put(
-      `/api/leaves/${leaveId}/review?status_update=${status}&remarks=${encodeURIComponent(remarks)}`
-    );
-    return res.data;
-  },
-
-  // Payroll
-  generatePayroll: async (month, year, workingDays = 30) => {
-    const res = await adminClient.post('/api/payroll/generate', { month, year, working_days: workingDays });
-    return res.data;
-  },
-  getPayrolls: async () => {
-    const res = await adminClient.get('/api/payroll/all');
-    return res.data;
-  },
-  getPayrollSummary: async (employeeId, month, year) => {
-    let url = `/payroll/summary/${employeeId}`;
+  getMonthlySummary: async (month = null, year = null) => {
+    let url = '/api/attendance/monthly-summary';
     const params = [];
     if (month) params.push(`month=${month}`);
     if (year) params.push(`year=${year}`);
     if (params.length > 0) url += `?${params.join('&')}`;
     const res = await adminClient.get(url);
+    return res.data;
+  },
+
+  // Leaves
+  getLeaves: async (status = null) => {
+    const url = status ? `/api/leaves?status=${status}` : '/api/leaves';
+    const res = await adminClient.get(url);
+    return res.data;
+  },
+  reviewLeave: async (leaveId, status, rejectionReason = null) => {
+    const res = await adminClient.put(`/api/leaves/${leaveId}/review`, {
+      status,
+      rejection_reason: rejectionReason,
+    });
+    return res.data;
+  },
+
+  // Payroll
+  getPayrollSummary: async (month = null, year = null) => {
+    let url = '/api/payroll/summary';
+    const params = [];
+    if (month) params.push(`month=${month}`);
+    if (year) params.push(`year=${year}`);
+    if (params.length > 0) url += `?${params.join('&')}`;
+    const res = await adminClient.get(url);
+    return res.data;
+  },
+  processPayroll: async (data) => {
+    const res = await adminClient.post('/api/payroll/process', data);
     return res.data;
   },
 };

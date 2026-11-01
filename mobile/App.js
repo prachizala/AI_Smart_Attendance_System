@@ -13,7 +13,16 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Animated,
+  Dimensions,
 } from 'react-native';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+let CAMERA_WIDTH = SCREEN_WIDTH;
+let CAMERA_HEIGHT = Math.round(SCREEN_WIDTH * (16 / 9));
+if (CAMERA_HEIGHT < SCREEN_HEIGHT) {
+  CAMERA_HEIGHT = SCREEN_HEIGHT;
+  CAMERA_WIDTH = Math.round(SCREEN_HEIGHT * (9 / 16));
+}
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -605,7 +614,15 @@ function CheckInDashboard({
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.detail || 'Face registration failed.');
+        let errorDetail = 'Face registration failed.';
+        if (typeof data?.detail === 'string') {
+          errorDetail = data.detail;
+        } else if (Array.isArray(data?.detail)) {
+          errorDetail = data.detail.map((d) => d.msg || JSON.stringify(d)).join('\n');
+        } else if (data?.detail && typeof data.detail === 'object') {
+          errorDetail = data.detail.message || JSON.stringify(data.detail);
+        }
+        throw new Error(errorDetail);
       }
 
       if (user) {
@@ -626,7 +643,8 @@ function CheckInDashboard({
         text: t('faceSavedMsg'),
       });
     } catch (err) {
-      Alert.alert(t('faceMismatchTitle'), err.message || t('faceMismatchMsg'));
+      const msg = typeof err?.message === 'string' ? err.message : t('faceMismatchMsg');
+      Alert.alert(t('faceMismatchTitle'), msg);
     } finally {
       setIsEnrolling(false);
     }
@@ -815,7 +833,14 @@ function CheckInDashboard({
 
       if (!response.ok) {
         const statusCode = response.status;
-        const detailMsg = data.detail || 'Check-in failed.';
+        let detailMsg = 'Check-in failed.';
+        if (typeof data?.detail === 'string') {
+          detailMsg = data.detail;
+        } else if (Array.isArray(data?.detail)) {
+          detailMsg = data.detail.map((d) => d.msg || JSON.stringify(d)).join('\n');
+        } else if (data?.detail && typeof data.detail === 'object') {
+          detailMsg = data.detail.message || JSON.stringify(data.detail);
+        }
 
         if (statusCode === 403) {
           setResultModal({
@@ -1632,8 +1657,7 @@ function CheckInDashboard({
           onRequestClose={() => {
             if (!isProcessing) {
               setCameraReady(false);
-              setCameraReady(false);
-      setCameraActive(false);
+              setCameraActive(false);
             }
           }}
         >
@@ -1642,7 +1666,7 @@ function CheckInDashboard({
               <CameraView
                 key={cameraFacing}
                 ref={cameraRef}
-                style={[StyleSheet.absoluteFillObject, { flex: 1, width: '100%', height: '100%' }]}
+                style={styles.cameraStream}
                 facing={cameraFacing}
                 mode="picture"
                 autoFocus="on"
@@ -1775,7 +1799,7 @@ function CheckInDashboard({
               <CameraView
                 key={enrollFacing}
                 ref={enrollCameraRef}
-                style={[StyleSheet.absoluteFillObject, { flex: 1, width: '100%', height: '100%' }]}
+                style={styles.cameraStream}
                 facing={enrollFacing}
                 mode="picture"
                 autoFocus="on"
@@ -2856,7 +2880,14 @@ const createStyles = (colors, isDark) =>
     width: '100%',
     height: '100%',
     backgroundColor: '#000000',
-    position: 'relative',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cameraStream: {
+    position: 'absolute',
+    width: CAMERA_WIDTH,
+    height: CAMERA_HEIGHT,
   },
   fullScreenOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -2867,6 +2898,7 @@ const createStyles = (colors, isDark) =>
     alignItems: 'center',
     justifyContent: 'center',
     paddingBottom: 40,
+    zIndex: 10,
   },
   fullScreenFaceOval: {
     width: 240,

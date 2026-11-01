@@ -5,7 +5,7 @@ import base64
 from typing import Union, List, Dict, Any, Optional
 import numpy as np
 import cv2
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 try:
     import face_recognition
@@ -51,8 +51,7 @@ def decode_image_to_rgb(image_input: Union[bytes, str, io.BytesIO, np.ndarray]) 
         with Image.open(io.BytesIO(image_bytes)) as pil_img:
             # Auto-orient using EXIF orientation tag if present
             try:
-                from PIL import Image, ImageDraw, ImageFontOps
-                pil_img = ImageOps.exif_transpose(pil_img)
+                                pil_img = ImageOps.exif_transpose(pil_img)
             except Exception:
                 pass
 

@@ -39,6 +39,53 @@ from auth import (
     get_current_user, get_current_admin
 )
 
+# Automatic First-Boot Seeding for Production Deployments
+def _ensure_initial_seed():
+    try:
+        from database import SessionLocal
+        db = SessionLocal()
+        try:
+            admin_count = db.query(models.User).filter(models.User.role == "admin").count()
+            if admin_count == 0:
+                admin_user = models.User(
+                    employee_id="ADMIN01",
+                    full_name="Dr. S. K. Kulkarni (HOD)",
+                    email="hod@college.edu",
+                    hashed_password=get_password_hash("admin123"),
+                    phone="9825100001",
+                    department="Administration",
+                    designation="HOD & Professor",
+                    role="admin",
+                    base_salary=85000.0,
+                    is_active=True,
+                    has_face_registered=False
+                )
+                db.add(admin_user)
+
+                emp1 = models.User(
+                    employee_id="EMP001",
+                    full_name="Zala Prachi",
+                    email="prachizala2003@gmail.com",
+                    hashed_password=get_password_hash("secret123"),
+                    phone="9825100002",
+                    department="Computer Applications",
+                    designation="Software Engineer",
+                    role="employee",
+                    base_salary=50000.0,
+                    is_active=True,
+                    has_face_registered=True
+                )
+                db.add(emp1)
+                db.commit()
+        except Exception:
+            db.rollback()
+        finally:
+            db.close()
+    except Exception:
+        pass
+
+_ensure_initial_seed()
+
 logger = logging.getLogger("smart_attendance")
 
 # App Initialization

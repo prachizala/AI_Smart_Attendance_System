@@ -23,6 +23,8 @@ def calculate_punctuality_score(db: Session, user_id: int) -> Dict[str, Any]:
             "rating": "Good",
             "tier": "Gold",
             "total_punches": 0,
+            "on_time_count": 0,
+            "late_count": 0,
             "on_time_ratio": 100.0,
             "streak": 0,
         }

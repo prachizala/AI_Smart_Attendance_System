@@ -1228,6 +1228,63 @@ def get_payslip_data(
     }
 
 
+
+# ==========================================
+# Domain 7: Punctuality Leaderboard & Gamification
+# ==========================================
+@app.get("/api/attendance/leaderboard", tags=["Attendance"])
+@app.get("/attendance/leaderboard", tags=["Attendance"])
+def get_attendance_leaderboard(
+    limit: int = 10,
+    db: Session = Depends(get_db)
+):
+    """
+    Returns the Punctuality Leaderboard & Monthly Gamification Ranking.
+    Computes 300-900 trust scores, tiers, and badges for active workforce members.
+    """
+    from services.chatbot_service import calculate_punctuality_score
+    users = db.query(models.User).filter(
+        models.User.is_active == True,
+        models.User.role != "admin"
+    ).all()
+
+    board = []
+    badge_titles = {
+        1: "Punctuality Grandmaster 🏆",
+        2: "Early Bird Ace 🌟",
+        3: "Punctual Maestro ⚡",
+    }
+
+    for u in users:
+        score_data = calculate_punctuality_score(db, u.id)
+        board.append({
+            "user_id": u.id,
+            "employee_id": u.employee_id,
+            "full_name": u.full_name,
+            "department": getattr(u, "department", "Computer Applications") or "Computer Applications",
+            "score": score_data["score"],
+            "tier": score_data["tier"],
+            "rating": score_data["rating"],
+            "on_time_ratio": score_data.get("on_time_ratio", 100.0),
+            "on_time_count": score_data.get("on_time_count", 0),
+            "late_count": score_data.get("late_count", 0),
+            "total_punches": score_data.get("total_punches", 0),
+        })
+
+    board.sort(key=lambda x: (x["score"], x["on_time_ratio"], x["total_punches"]), reverse=True)
+
+    top_board = board[:limit]
+    for idx, item in enumerate(top_board, 1):
+        item["rank"] = idx
+        item["badge"] = badge_titles.get(idx, f"Punctuality Star ({item['tier']})")
+
+    return {
+        "leaderboard": top_board,
+        "total_ranked": len(board),
+        "period": datetime.now().strftime("%B %Y")
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

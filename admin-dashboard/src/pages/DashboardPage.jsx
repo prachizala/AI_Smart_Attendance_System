@@ -1,6 +1,7 @@
 import React from 'react';
 import { Users, UserCheck, Clock, UserX, CalendarOff, MapPin, CheckCircle2, XCircle, Download, Printer } from 'lucide-react';
 import GeofenceMap from '../components/GeofenceMap';
+import PunctualityLeaderboard from '../components/PunctualityLeaderboard';
 
 export default function DashboardPage({ stats, todayLogs, isLoading }) {
   const mapPunches = (todayLogs || []).map((log, idx) => ({
@@ -100,6 +101,9 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
         radiusMeters={100}
         recentPunches={mapPunches}
       />
+
+      {/* Workforce Punctuality & Trust Leaderboard */}
+      <PunctualityLeaderboard />
 
       {/* Real-time Daily Attendance Table */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">

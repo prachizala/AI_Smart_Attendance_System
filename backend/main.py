@@ -360,13 +360,46 @@ def system_seed(db: Session = Depends(get_db)):
     return {"status": "ok", "seeded": created, "total_users": total}
 
 
+# In-memory login rate limiter (mitigates brute-force credential stuffing)
+_LOGIN_ATTEMPTS = {}  # key: ip:identifier -> list of timestamps
+_MAX_LOGIN_ATTEMPTS = int(os.getenv("MAX_LOGIN_ATTEMPTS", "5"))
+_LOGIN_WINDOW_SECONDS = int(os.getenv("LOGIN_WINDOW_SECONDS", "60"))
+
+def _check_login_rate_limit(request: Request, identifier: str):
+    now = datetime.utcnow()
+    client_ip = request.client.host if (request and request.client) else "unknown"
+    key = f"{client_ip}:{identifier.lower()}"
+    timestamps = _LOGIN_ATTEMPTS.get(key, [])
+    cutoff = now - timedelta(seconds=_LOGIN_WINDOW_SECONDS)
+    valid_timestamps = [ts for ts in timestamps if ts > cutoff]
+    if len(valid_timestamps) >= _MAX_LOGIN_ATTEMPTS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many failed login attempts. Please wait {_LOGIN_WINDOW_SECONDS} seconds before trying again."
+        )
+    _LOGIN_ATTEMPTS[key] = valid_timestamps
+
+def _record_login_failure(request: Request, identifier: str):
+    now = datetime.utcnow()
+    client_ip = request.client.host if (request and request.client) else "unknown"
+    key = f"{client_ip}:{identifier.lower()}"
+    timestamps = _LOGIN_ATTEMPTS.get(key, [])
+    timestamps.append(now)
+    _LOGIN_ATTEMPTS[key] = timestamps
+
+def _record_login_success(request: Request, identifier: str):
+    client_ip = request.client.host if (request and request.client) else "unknown"
+    key = f"{client_ip}:{identifier.lower()}"
+    _LOGIN_ATTEMPTS.pop(key, None)
+
 @app.post("/api/auth/login", response_model=TokenResponse, tags=["Auth"])
-def login(creds: UserLogin, db: Session = Depends(get_db)):
+def login(creds: UserLogin, request: Request, db: Session = Depends(get_db)):
+    identifier = creds.identifier.strip()
+    _check_login_rate_limit(request, identifier)
+
     # Auto-seed if first boot on fresh cloud database
     if db.query(models.User).count() == 0:
         seed_default_users(db)
-
-    identifier = creds.identifier.strip()
 
     # Aliases for convenience: 'admin' or 'administrator' maps to system admin
     if identifier.lower() in ["admin", "administrator"]:
@@ -379,9 +412,10 @@ def login(creds: UserLogin, db: Session = Depends(get_db)):
         ).first()
 
     if not user:
+        _record_login_failure(request, identifier)
         raise HTTPException(
             status_code=401,
-            detail="Invalid Employee ID or Email. No account found with this identifier. Use 'ADMIN01' or 'admin' for demo."
+            detail="Invalid credentials. No registered account matches the provided identifier."
         )
 
     if not user.is_active:
@@ -391,21 +425,14 @@ def login(creds: UserLogin, db: Session = Depends(get_db)):
         )
 
     pw_valid = verify_password(creds.password, user.hashed_password) if user else False
-    if not pw_valid and user:
-        # Standard demo fallbacks for seamless evaluation
-        if user.role == "admin" or user.employee_id in ["ADMIN01", "ADM001"]:
-            if creds.password in ["admin123", "Admin@123", "admin", "secret123", "password", "password123"]:
-                pw_valid = True
-        elif user.employee_id == "EMP001":
-            if creds.password in ["secret123", "Prachi@123", "password123", "admin123"]:
-                pw_valid = True
-
     if not pw_valid:
+        _record_login_failure(request, identifier)
         raise HTTPException(
             status_code=401,
-            detail="Incorrect password. Please verify and enter the correct password (default: admin123)."
+            detail="Invalid credentials. Password verification failed."
         )
 
+    _record_login_success(request, identifier)
     token = create_token({"sub": str(user.id), "role": user.role})
     return TokenResponse(
         access_token=token,

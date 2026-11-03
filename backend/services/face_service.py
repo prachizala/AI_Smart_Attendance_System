@@ -42,9 +42,10 @@ def decode_image_to_rgb(image_input: Union[bytes, str, io.BytesIO, np.ndarray]) 
     else:
         raise TypeError("Unsupported image input type. Expected Base64 string, bytes, or NumPy array.")
 
-    # 2. Enforce upload size constraint (max 15MB for high-res mobile selfies)
-    if len(image_bytes) > 15 * 1024 * 1024:
-        raise ValueError("Image upload size exceeds the maximum allowed limit of 15MB.")
+    # 2. Enforce upload size constraint (max 5MB for mobile selfies, configurable via env)
+    max_size_bytes = int(os.getenv("MAX_IMAGE_UPLOAD_BYTES", str(5 * 1024 * 1024)))
+    if len(image_bytes) > max_size_bytes:
+        raise ValueError(f"Image upload size exceeds the maximum allowed limit of {max_size_bytes // (1024 * 1024)}MB.")
 
     # 3. Convert raw bytes to PIL Image, protect against decompression bombs, and convert to RGB
     Image.MAX_IMAGE_PIXELS = 100_000_000

@@ -40,3 +40,21 @@ This document explains every major change made to this repository in simple, pla
 
 ### How It Works:
 - Each service uses `os.getenv("VAR_NAME", default)` to read configurations, falling back to safe local testing defaults if the environment variable is not defined.
+
+
+## 3. Security Hardening of Backend (`security: harden auth, remove backdoors, add rate limiting and image upload validation`)
+
+### What Changed:
+1. **Removed Demo Authentication Backdoors**: In `backend/main.py`, deleted the fallback block that permitted arbitrary passwords (`password`, `admin`, `secret123`) to bypass bcrypt verification. All accounts must now verify strictly against their stored bcrypt hash.
+2. **Added In-Memory Rate Limiting on Login**: Implemented `_check_login_rate_limit()` preventing brute-force password guessing. If more than 5 failed attempts occur within 60 seconds from an IP/identifier, HTTP 429 (Too Many Requests) is returned.
+3. **Image Upload Size & Validation Constraints**: Reduced maximum allowed selfie upload size to 5MB (configurable via `MAX_IMAGE_UPLOAD_BYTES`), preventing memory exhaustion and denial-of-service (DoS) via oversized image uploads.
+4. **Tolerance Parameter Alignment**: Updated `routes/attendance.py` check-in and check-out handlers to pass `tolerance=None`, dynamically inheriting `FACE_MATCH_THRESHOLD` from environment configuration.
+
+### Why This Was Done (Interview Answer):
+- Hardcoded fallback passwords in authentication routes act like backdoors and will immediately fail any technical screening or security audit.
+- Rate limiting on authentication endpoints is standard defense-in-depth against automated brute-force attacks and credential stuffing.
+- Enforcing payload size limits on media endpoints protects Python image processing libraries from decompression bombs and Out-Of-Memory (OOM) crashes.
+
+### How It Works:
+- Failed login timestamps are stored in memory mapped to `client_ip:identifier`. Old timestamps outside the 60-second sliding window are evicted; if the active count reaches 5, an HTTP 429 exception is raised before checking the database.
+- Image decoding strictly checks Base64 headers, byte lengths, and PIL format integrity before passing arrays to OpenCV or face_recognition.

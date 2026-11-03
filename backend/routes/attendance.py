@@ -184,7 +184,7 @@ def attendance_check_in(
             detail=f"Biometric processing failed: {str(e)}"
         )
 
-    face_match = verify_face(live_embedding, user.face_embedding, tolerance=0.5)
+    face_match = verify_face(live_embedding, user.face_embedding)
     if not face_match["is_matched"]:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -288,7 +288,7 @@ def attendance_check_out(
     if payload.face_image_base64 and user.face_embedding:
         try:
             live_embedding = extract_face_embedding(payload.face_image_base64)
-            face_match = verify_face(live_embedding, user.face_embedding, tolerance=0.5)
+            face_match = verify_face(live_embedding, user.face_embedding)
             if not face_match["is_matched"]:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,

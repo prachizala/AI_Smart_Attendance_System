@@ -39,7 +39,7 @@ from auth import (
     get_current_user, get_current_admin
 )
 
-# Automatic First-Boot Seeding for Production Deployments
+# Automatic First-Boot Seeding for Academic Demonstrations
 def _ensure_initial_seed():
     try:
         from database import SessionLocal
@@ -47,11 +47,13 @@ def _ensure_initial_seed():
         try:
             admin_count = db.query(models.User).filter(models.User.role == "admin").count()
             if admin_count == 0:
+                demo_admin_pwd = os.getenv("DEMO_ADMIN_PASSWORD", "AdminDemoPass@2026")
+                demo_emp_pwd = os.getenv("DEMO_EMP_PASSWORD", "EmpDemoPass@2026")
                 admin_user = models.User(
                     employee_id="ADMIN01",
                     full_name="Dr. S. K. Kulkarni (HOD)",
                     email="hod@college.edu",
-                    hashed_password=get_password_hash("admin123"),
+                    hashed_password=get_password_hash(demo_admin_pwd),
                     phone="9825100001",
                     department="Administration",
                     designation="HOD & Professor",
@@ -65,7 +67,7 @@ def _ensure_initial_seed():
                     employee_id="EMP001",
                     full_name="Zala Prachi",
                     email="prachizala2003@gmail.com",
-                    hashed_password=get_password_hash("secret123"),
+                    hashed_password=get_password_hash(demo_emp_pwd),
                     phone="9825100002",
                     department="Computer Applications",
                     designation="Software Engineer",
@@ -95,7 +97,7 @@ app = FastAPI(
 
 # Safe CORS Configuration
 # Replaces insecure allow_origins=["*"] with credentials with explicit origin allowlist and regex
-_env_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+_env_origins = [o.strip() for o in os.getenv("CORS_ORIGINS", os.getenv("ALLOWED_ORIGINS", "")).split(",") if o.strip()]
 ALLOWED_ORIGINS = _env_origins or [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -105,18 +107,6 @@ ALLOWED_ORIGINS = _env_origins or [
     "http://127.0.0.1:8000",
     "http://localhost:8081",
     "http://127.0.0.1:8081",
-    "http://192.168.1.2:3000",
-    "http://192.168.1.2:5173",
-    "http://192.168.1.2:8000",
-    "http://192.168.1.2:8081",
-    "http://172.16.4.26:3000",
-    "http://172.16.4.26:5173",
-    "http://172.16.4.26:8000",
-    "http://172.16.4.26:8081",
-    "http://10.115.36.66:3000",
-    "http://10.115.36.66:5173",
-    "http://10.115.36.66:8000",
-    "http://10.115.36.66:8081",
 ]
 
 app.add_middleware(

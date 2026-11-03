@@ -92,7 +92,19 @@ flowchart TD
 
 ## 🚀 Setup & Execution
 
-### 1. Backend Setup
+### 🐳 Quickstart with Docker Compose (Recommended)
+You can launch the complete backend environment in a single command without configuring local Python runtimes:
+```bash
+docker compose up --build
+```
+* Backend API: `http://localhost:8000`
+* Interactive OpenAPI / Swagger UI: `http://localhost:8000/docs`
+
+---
+
+### Manual Setup
+
+#### 1. Backend Setup
 ```bash
 cd backend
 python -m venv venv

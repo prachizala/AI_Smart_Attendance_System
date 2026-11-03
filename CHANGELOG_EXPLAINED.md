@@ -78,3 +78,24 @@ This document explains every major change made to this repository in simple, pla
 
 ### How It Works:
 - GitHub Actions spins up an Ubuntu runner, checks out the code, provisions Python 3.11, installs requirements, executes `ruff check`, and runs `pytest -v` with environment variables.
+
+
+## 5. Documentation & README Overhaul (`docs: rewrite README with honest feature list and design decisions`)
+
+### What Changed:
+1. **Rewrote `README.md` (184 lines)**:
+   - Replaced exaggerated marketing buzzwords ("enterprise-grade", "cryptographic watermark") with honest academic descriptions ("Academic Minor Project", "Visual text audit watermark").
+   - Added clear CI badge, system architecture Mermaid diagram, and honest limitation disclosures.
+   - Accurately represented the tech stack: FastAPI, React Native (Expo), React (Vite), SQLite (SQLAlchemy), OpenCV. Removed all false mentions of Flutter or MySQL.
+2. **Created `docs/DESIGN_DECISIONS.md`**:
+   - Deep-dive technical explanations for interviewers: why 0.50/0.65 face threshold was selected, how the Haversine formula works, SQLite vs. PostgreSQL migration steps, JWT authentication lifecycle, and GPS spoofing mitigations.
+3. **Created `docs/FEATURES.md`**: Extracted lengthy descriptions of auxiliary modules (Chatbot, Leaderboard, Payroll, QR Kiosk) into a separate document, keeping the main README clean and focused.
+4. **Relocated `VIVA_AND_TESTING_GUIDE.md` to `docs/`**: Organized all supplementary guides into a single `docs/` folder.
+5. **Created `docs/screenshots/README.md`**: Provided placeholder checklists and instructions for capturing professional demonstration screenshots and video GIFs.
+
+### Why This Was Done (Interview Answer):
+- Technical interviewers immediately discount candidates whose READMEs make inflated claims or contradict the actual codebase.
+- Having a dedicated `DESIGN_DECISIONS.md` proves architectural maturity, demonstrating that you understand trade-offs (e.g. False Accept Rate vs. False Reject Rate) rather than just copying tutorial code.
+
+### How It Works:
+- Modular Markdown documentation links together cleanly via relative file paths.

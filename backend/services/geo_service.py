@@ -6,10 +6,11 @@ from dotenv import load_dotenv
 # Load environment configuration from .env if present
 load_dotenv()
 
-# Target Workplace Coordinates & Perimeter Configuration (SBS Shanti Business School, Shela, Ahmedabad, Gujarat 380058)
-OFFICE_LAT = float(os.getenv("OFFICE_LATITUDE", "23.002217"))
-OFFICE_LON = float(os.getenv("OFFICE_LONGITUDE", "72.455763"))
-ALLOWED_RADIUS_METERS = float(os.getenv("ALLOWED_RADIUS_METERS", "100.0"))  # 100 meters geofence perimeter
+# Target Workplace Coordinates & Perimeter Configuration (Configurable via .env)
+# Default coordinates: SBS Shanti Business School, Shela, Ahmedabad, Gujarat 380058
+OFFICE_LAT = float(os.getenv("OFFICE_LAT", os.getenv("OFFICE_LATITUDE", "23.002217")))
+OFFICE_LON = float(os.getenv("OFFICE_LNG", os.getenv("OFFICE_LONGITUDE", "72.455763")))
+ALLOWED_RADIUS_METERS = float(os.getenv("GEOFENCE_RADIUS_M", os.getenv("ALLOWED_RADIUS_METERS", "100.0")))  # Geofence perimeter in meters
 
 # Earth's mean radius in meters according to WGS-84 reference (6371 km)
 EARTH_RADIUS_METERS = 6371000.0

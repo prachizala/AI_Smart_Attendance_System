@@ -24,3 +24,19 @@ This document explains every major change made to this repository in simple, pla
 ### How It Works:
 - Python's `os.getenv("VARIABLE_NAME", "default_value")` checks if an environment variable is set. If not, it falls back to a safe default for local development.
 - Git's `git rm --cached` removes files from tracking while keeping the actual files untouched on your local disk.
+
+
+## 2. Configurable Business Rules (`feat: make geofence, shift, and face threshold configurable`)
+
+### What Changed:
+1. **Configurable Geofence**: `OFFICE_LAT`, `OFFICE_LNG`, and `GEOFENCE_RADIUS_M` can now be set directly via `.env` in `services/geo_service.py`.
+2. **Configurable Shift Arrival Time**: Shift threshold is now read from `SHIFT_START` or `OFFICE_START_TIME` (default `09:30`) in `routes/attendance.py`.
+3. **Configurable Face Match Tolerance**: Face comparison tolerance in `services/face_service.py` is read from `FACE_MATCH_THRESHOLD` (default `0.50`).
+4. **Created Configuration Documentation**: Detailed documentation in `docs/CONFIGURATION.md` explaining the meaning and impact of every variable.
+
+### Why This Was Done (Interview Answer):
+- Hardcoded coordinates or timing thresholds make code brittle and unmaintainable across multiple offices, test locations, or shifts.
+- Making business rules environment-driven follows the **Twelve-Factor App** methodology and allows operations or HR rules to change without recompiling or redeploying code.
+
+### How It Works:
+- Each service uses `os.getenv("VAR_NAME", default)` to read configurations, falling back to safe local testing defaults if the environment variable is not defined.

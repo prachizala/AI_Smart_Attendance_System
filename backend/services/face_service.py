@@ -1,3 +1,4 @@
+import os
 import io
 import re
 import json
@@ -119,11 +120,15 @@ def extract_face_embedding(
         return normalized.tolist()
 
 
+DEFAULT_FACE_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.50"))
+
 def verify_face(
     live_encoding: Union[List[float], np.ndarray, str],
     db_encoding: Union[List[float], np.ndarray, str],
-    tolerance: float = 0.5
+    tolerance: Optional[float] = None
 ) -> Dict[str, Any]:
+    if tolerance is None:
+        tolerance = float(os.getenv("FACE_MATCH_THRESHOLD", str(DEFAULT_FACE_THRESHOLD)))
     """
     Action: Compare a real-time selfie representation against the registered DB embedding.
     

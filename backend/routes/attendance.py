@@ -208,8 +208,13 @@ def attendance_check_in(
         )
 
     now = datetime.utcnow()
-    # Shift arrival threshold: 09:30 AM
-    attendance_status = "late" if now.time() > datetime.strptime("09:30", "%H:%M").time() else "present"
+    # Shift arrival threshold (configurable via SHIFT_START or OFFICE_START_TIME, default: 09:30 AM)
+    shift_start_str = os.getenv("SHIFT_START", os.getenv("OFFICE_START_TIME", "09:30"))
+    try:
+        shift_time = datetime.strptime(shift_start_str, "%H:%M").time()
+    except Exception:
+        shift_time = datetime.strptime("09:30", "%H:%M").time()
+    attendance_status = "late" if now.time() > shift_time else "present"
 
     if existing_attendance:
         existing_attendance.check_in = now

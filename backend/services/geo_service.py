@@ -1,6 +1,7 @@
 import math
 import os
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from dotenv import load_dotenv
 
 # Load environment configuration from .env if present
@@ -24,7 +25,7 @@ def calculate_haversine_distance(
 ) -> float:
     """
     Action: Calculate great-circle distance between two GPS coordinates using the Haversine formula.
-    
+
     Mathematical Formulation:
       Δφ = radians(lat2 - lat1)
       Δλ = radians(lon2 - lon1)
@@ -70,11 +71,11 @@ def verify_location(
 ) -> Dict[str, Any]:
     """
     Action: Approve or reject employee location based on the allowed office radius.
-    
+
     Target Coordinates:
       Office_Lat = 23.002217, Office_Lon = 72.455763 (SBS Shanti Business School, Shela, Ahmedabad)
       Target Radius = 100.0 meters
-    
+
     Returns:
       {"inside_geofence": bool, "distance_meters": float}
     """

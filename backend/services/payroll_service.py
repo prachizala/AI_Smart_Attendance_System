@@ -1,8 +1,9 @@
 import calendar
-from datetime import datetime, date, timedelta
-from typing import Optional, Dict, Any
-from sqlalchemy.orm import Session
+from datetime import date, datetime
+from typing import Any, Dict, Optional
+
 import models
+from sqlalchemy.orm import Session
 
 
 def calculate_monthly_pay(base: float, total_days: int, present: float) -> float:

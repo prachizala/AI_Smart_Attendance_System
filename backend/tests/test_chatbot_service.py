@@ -1,9 +1,6 @@
-import pytest
-from datetime import date
-from main import app, engine
-from database import SessionLocal
 import models
-from services.chatbot_service import process_chat_query, calculate_punctuality_score
+from database import SessionLocal
+from services.chatbot_service import calculate_punctuality_score, process_chat_query
 
 
 def test_chatbot_service_basic():

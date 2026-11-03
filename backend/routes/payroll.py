@@ -1,13 +1,13 @@
-from datetime import datetime, date
-from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field, ConfigDict
-from sqlalchemy.orm import Session
+from datetime import datetime
+from typing import List, Optional
 
-from database import get_db
 import models
 from auth import get_current_admin
-from services.payroll_service import calculate_employee_payroll, calculate_monthly_pay
+from database import get_db
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, ConfigDict, Field
+from services.payroll_service import calculate_employee_payroll
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/payroll", tags=["Academic Payroll"])
 

@@ -1,11 +1,13 @@
-import pytest
 import uuid
 from datetime import date
+
+import models
+import pytest
+from database import SessionLocal
 from fastapi.testclient import TestClient
 from main import app
-from database import SessionLocal
-import models
-from services.payroll_service import calculate_monthly_pay, calculate_employee_payroll
+from services.payroll_service import calculate_monthly_pay
+
 from tests.helpers import get_admin_headers
 
 client = TestClient(app)
@@ -37,7 +39,7 @@ def test_calculate_monthly_pay_math():
 def test_payroll_summary_api_endpoint():
     uid = uuid.uuid4().hex[:6].upper()
     emp_code = f"PAYROLL_{uid}"
-    
+
     # 1. Register employee with base salary 36,000 (1,200 per day for 30 days)
     reg_res = client.post("/api/auth/register", json={
         "employee_id": emp_code,

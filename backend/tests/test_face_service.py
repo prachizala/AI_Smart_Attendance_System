@@ -1,7 +1,11 @@
-import pytest
-import numpy as np
 import json
-from services.face_service import verify_face, serialize_embedding, deserialize_embedding, extract_face_embedding
+
+import numpy as np
+import pytest
+from services.face_service import (
+    extract_face_embedding,
+    verify_face,
+)
 
 
 def test_verify_face_identical():

@@ -1,15 +1,15 @@
 import os
-from datetime import datetime, date
-from typing import Optional, Dict, Any, List
-from fastapi import APIRouter, Depends, HTTPException, Header, status
-from pydantic import BaseModel, Field, ConfigDict
-from sqlalchemy.orm import Session
-from jose import JWTError, jwt
+from datetime import date, datetime
+from typing import List, Optional
 
-from database import get_db
 import models
+from database import get_db
+from fastapi import APIRouter, Depends, Header, HTTPException, status
+from jose import JWTError, jwt
+from pydantic import BaseModel, ConfigDict, Field
 from services.face_service import extract_face_embedding, verify_face
 from services.geo_service import verify_location
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/attendance", tags=["Attendance Verification"])
 

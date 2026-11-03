@@ -1,12 +1,13 @@
-import os
-import io
-import re
-import json
 import base64
-from typing import Union, List, Dict, Any, Optional
-import numpy as np
+import io
+import json
+import os
+import re
+from typing import Any, Dict, List, Optional, Union
+
 import cv2
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+import numpy as np
+from PIL import Image, ImageDraw, ImageOps
 
 try:
     import face_recognition
@@ -78,7 +79,7 @@ def extract_face_embedding(
 ) -> List[float]:
     """
     Action: Convert an uploaded image into a 128-dimensional biometric embedding vector.
-    
+
     1. Reads and decodes image stream from FastAPI or mobile Base64 selfie.
     2. Detects face bounding box with error handling for 'No face' or 'Multiple faces'.
     3. Extracts the 128-d representation vector and returns it as a list of floats.
@@ -91,7 +92,7 @@ def extract_face_embedding(
 
         if len(locations) == 0:
             raise ValueError("No face detected in the image. Please ensure your face is well-lit and facing the camera directly.")
-        
+
         if len(locations) > 1:
             raise ValueError(f"Multiple faces detected ({len(locations)}). Only one employee face must be present in the frame.")
 
@@ -132,7 +133,7 @@ def verify_face(
         tolerance = float(os.getenv("FACE_MATCH_THRESHOLD", str(DEFAULT_FACE_THRESHOLD)))
     """
     Action: Compare a real-time selfie representation against the registered DB embedding.
-    
+
     1. Converts stored DB string/list back to NumPy array.
     2. Calculates Euclidean distance: || live - db ||.
     3. Evaluates distance <= tolerance.

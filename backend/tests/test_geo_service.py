@@ -1,5 +1,5 @@
 import pytest
-from services.geo_service import calculate_haversine_distance, verify_location, is_within_geofence
+from services.geo_service import calculate_haversine_distance, verify_location
 
 OFFICE_LAT = 23.002217
 OFFICE_LON = 72.455763

@@ -12,26 +12,24 @@ Validates:
 """
 
 import os
-import json
-import pytest
 import uuid
 from datetime import datetime, timedelta
-from jose import jwt
-from fastapi.testclient import TestClient
 
-from main import app
-from database import SessionLocal
 import models
-from auth import SECRET_KEY, ALGORITHM, get_password_hash
+import pytest
+from auth import ALGORITHM, SECRET_KEY, get_password_hash
+from database import SessionLocal
+from fastapi.testclient import TestClient
+from jose import jwt
+from main import app
 from security_sandbox import (
-    validate_safe_path,
-    get_target_sandbox,
-    cleanup_target_sandbox,
-    validate_image_security,
+    BASE_SANDBOX_DIR,
     SecurityException,
-    BASE_SANDBOX_DIR
+    cleanup_target_sandbox,
+    get_target_sandbox,
+    validate_image_security,
+    validate_safe_path,
 )
-from tests.helpers import get_admin_headers
 
 client = TestClient(app)
 

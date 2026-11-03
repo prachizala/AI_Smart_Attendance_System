@@ -4,11 +4,11 @@ Handles natural language questions about attendance, leaves, shift policies,
 biometric verification, and punctuality scores with multilingual response generation.
 """
 
-from datetime import datetime, date, timedelta
-from typing import Dict, Any, List, Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from datetime import date, timedelta
+from typing import Any, Dict
+
 import models
+from sqlalchemy.orm import Session
 
 
 def calculate_punctuality_score(db: Session, user_id: int) -> Dict[str, Any]:
@@ -30,8 +30,8 @@ def calculate_punctuality_score(db: Session, user_id: int) -> Dict[str, Any]:
         }
 
     total = len(logs)
-    present_on_time = sum(1 for l in logs if l.status == "present")
-    late = sum(1 for l in logs if l.status == "late")
+    present_on_time = sum(1 for log_entry in logs if log_entry.status == "present")
+    late = sum(1 for log_entry in logs if log_entry.status == "late")
     ratio = (present_on_time / total) if total > 0 else 1.0
 
     # Base score 300, max 900
@@ -102,12 +102,12 @@ def process_chat_query(
 
         if today_late:
             late_lines = []
-            for l in today_late:
-                u = db.query(models.User).filter(models.User.id == l.user_id).first()
-                emp_name = u.full_name if u else (l.employee_name or f"Employee #{l.user_id}")
+            for late_log in today_late:
+                u = db.query(models.User).filter(models.User.id == late_log.user_id).first()
+                emp_name = u.full_name if u else (late_log.employee_name or f"Employee #{late_log.user_id}")
                 emp_code = u.employee_id if u else "EMP"
-                punch_t = l.check_in.strftime("%I:%M %p") if l.check_in else "N/A"
-                mins = l.late_minutes or 0
+                punch_t = late_log.check_in.strftime("%I:%M %p") if late_log.check_in else "N/A"
+                mins = late_log.late_minutes or 0
                 late_lines.append(f"• {emp_name} ({emp_code}) — {punch_t} ({mins}m late)")
 
             lines_str = "\n".join(late_lines)
@@ -134,9 +134,9 @@ def process_chat_query(
     if is_workforce_query and any(k in text for k in ["attendance count", "count", "how many", "total present", "kitne log", "hajari count"]):
         today_logs = db.query(models.Attendance).filter(models.Attendance.date == today).all()
         total_present = len(today_logs)
-        on_time_count = sum(1 for l in today_logs if l.status == "present")
-        late_count = sum(1 for l in today_logs if l.status == "late")
-        users_count = db.query(models.User).filter(models.User.is_active == True, models.User.role != "admin").count()
+        on_time_count = sum(1 for log_item in today_logs if log_item.status == "present")
+        late_count = sum(1 for log_item in today_logs if log_item.status == "late")
+        users_count = db.query(models.User).filter(models.User.is_active.is_(True), models.User.role != "admin").count()
         absent_count = max(0, users_count - total_present)
 
         if lang == "hi":
@@ -228,8 +228,8 @@ def process_chat_query(
         ).all()
 
         total = len(logs)
-        on_time = sum(1 for l in logs if l.status == "present")
-        late = sum(1 for l in logs if l.status == "late")
+        on_time = sum(1 for log_entry in logs if log_entry.status == "present")
+        late = sum(1 for log_entry in logs if log_entry.status == "late")
         pct = round((on_time / total * 100), 1) if total > 0 else 100.0
 
         if lang == "hi":
@@ -272,8 +272,8 @@ def process_chat_query(
         leaves = db.query(models.LeaveRequest).filter(
             models.LeaveRequest.user_id == user_id
         ).all()
-        approved = sum(1 for l in leaves if l.status == "approved")
-        pending = sum(1 for l in leaves if l.status == "pending")
+        approved = sum(1 for leave_item in leaves if leave_item.status == "approved")
+        pending = sum(1 for leave_item in leaves if leave_item.status == "pending")
 
         # Standard academic policy: 12 casual + 6 sick
         casual_left = max(0, 12 - approved)
@@ -354,27 +354,27 @@ def process_chat_query(
     if any(k in text for k in ["timing", "shift", "rules", "policy", "late", "grace", "time", "samay"]):
         if lang == "hi":
             reply = (
-                f"Office Shift & Geofence Rules:\n"
-                f"• Shift Time: 09:30 AM se 05:30 PM (8 Ghante)\n"
-                f"• Grace Period: 09:30 AM tak (iske baad 'Late' mark hoga)\n"
-                f"• Geofence Perimeter: SBS Campus, Shela ke 100m ke andar hona zaroori hai\n"
-                f"• Biometrics: Face Scan (128-D AI) ya Phone Fingerprint Sensor"
+                "Office Shift & Geofence Rules:\n"
+                "• Shift Time: 09:30 AM se 05:30 PM (8 Ghante)\n"
+                "• Grace Period: 09:30 AM tak (iske baad 'Late' mark hoga)\n"
+                "• Geofence Perimeter: SBS Campus, Shela ke 100m ke andar hona zaroori hai\n"
+                "• Biometrics: Face Scan (128-D AI) ya Phone Fingerprint Sensor"
             )
         elif lang == "gu":
             reply = (
-                f"ઓફિસ શિફ્ટ અને જીઓફેન્સ નિયમો:\n"
-                f"• શિફ્ટ સમય: 09:30 AM થી 05:30 PM (૮ કલાક)\n"
-                f"• ગ્રેસ સમય: 09:30 AM સુધી (ત્યારબાદ 'લેટ' ગણાશે)\n"
-                f"• જીઓફેન્સ મર્યાદા: SBS કેમ્પસના ૧૦૦ મીટરની અંદર હોવું ફરજિયાત છે\n"
-                f"• બાયોમેટ્રિક્સ: Face Scan અથવા ફોન ફિંગરપ્રિન્ટ સેન્સર"
+                "ઓફિસ શિફ્ટ અને જીઓફેન્સ નિયમો:\n"
+                "• શિફ્ટ સમય: 09:30 AM થી 05:30 PM (૮ કલાક)\n"
+                "• ગ્રેસ સમય: 09:30 AM સુધી (ત્યારબાદ 'લેટ' ગણાશે)\n"
+                "• જીઓફેન્સ મર્યાદા: SBS કેમ્પસના ૧૦૦ મીટરની અંદર હોવું ફરજિયાત છે\n"
+                "• બાયોમેટ્રિક્સ: Face Scan અથવા ફોન ફિંગરપ્રિન્ટ સેન્સર"
             )
         else:
             reply = (
-                f"Office Shift & Policy Guidelines:\n"
-                f"• Shift Hours: 09:30 AM to 05:30 PM (8-hour standard workday)\n"
-                f"• Late Grace: Check-ins after 09:30 AM are flagged as 'Late'\n"
-                f"• Geofence: Device must be within 100m of SBS Campus perimeter\n"
-                f"• Verification: 128-D Face Recognition or native Device Fingerprint"
+                "Office Shift & Policy Guidelines:\n"
+                "• Shift Hours: 09:30 AM to 05:30 PM (8-hour standard workday)\n"
+                "• Late Grace: Check-ins after 09:30 AM are flagged as 'Late'\n"
+                "• Geofence: Device must be within 100m of SBS Campus perimeter\n"
+                "• Verification: 128-D Face Recognition or native Device Fingerprint"
             )
 
         return {
@@ -388,24 +388,24 @@ def process_chat_query(
     if any(k in text for k in ["camera", "face", "fingerprint", "geofence", "location", "black", "error", "problem"]):
         if lang == "hi":
             reply = (
-                f"Biometrics & Location Troubleshooting:\n"
-                f"• Black Camera? 'Upload Photo' button daba kar gallery se photo upload karein.\n"
-                f"• Location Error? Phone GPS Location ON karein aur ensure karein aap 100m perimeter me hain.\n"
-                f"• Fingerprint? Phone Settings me biometric enrolled hona chahiye."
+                "Biometrics & Location Troubleshooting:\n"
+                "• Black Camera? 'Upload Photo' button daba kar gallery se photo upload karein.\n"
+                "• Location Error? Phone GPS Location ON karein aur ensure karein aap 100m perimeter me hain.\n"
+                "• Fingerprint? Phone Settings me biometric enrolled hona chahiye."
             )
         elif lang == "gu":
             reply = (
-                f"બાયોમેટ્રિક્સ અને લોકેશન સહાય:\n"
-                f"• બ્લેક કેમેરા? 'Upload Photo' બટન દબાવીને ગેલેરીમાંથી ફોટો અપલોડ કરો.\n"
-                f"• લોકેશન સમસ્યા? ફોનનું GPS ચાલુ કરો અને ખાતરી કરો કે તમે ૧૦૦ મીટરમાં છો.\n"
-                f"• ફિંગરપ્રિન્ટ? ફોન સેટિંગ્સમાં ફિંગરપ્રિન્ટ રજીસ્ટર હોવી જરૂરી છે."
+                "બાયોમેટ્રિક્સ અને લોકેશન સહાય:\n"
+                "• બ્લેક કેમેરા? 'Upload Photo' બટન દબાવીને ગેલેરીમાંથી ફોટો અપલોડ કરો.\n"
+                "• લોકેશન સમસ્યા? ફોનનું GPS ચાલુ કરો અને ખાતરી કરો કે તમે ૧૦૦ મીટરમાં છો.\n"
+                "• ફિંગરપ્રિન્ટ? ફોન સેટિંગ્સમાં ફિંગરપ્રિન્ટ રજીસ્ટર હોવી જરૂરી છે."
             )
         else:
             reply = (
-                f"Biometric & Geofence Troubleshooting Guide:\n"
-                f"• Black Camera View? Use the 'Upload Photo' button to pick a selfie from your gallery.\n"
-                f"• Outside Geofence? Enable high-accuracy GPS and ensure you are within 100m of office HQ.\n"
-                f"• Fingerprint Punch: Requires native fingerprint/TouchID enrolled on your device."
+                "Biometric & Geofence Troubleshooting Guide:\n"
+                "• Black Camera View? Use the 'Upload Photo' button to pick a selfie from your gallery.\n"
+                "• Outside Geofence? Enable high-accuracy GPS and ensure you are within 100m of office HQ.\n"
+                "• Fingerprint Punch: Requires native fingerprint/TouchID enrolled on your device."
             )
 
         return {

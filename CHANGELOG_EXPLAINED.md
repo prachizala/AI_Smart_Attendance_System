@@ -58,3 +58,23 @@ This document explains every major change made to this repository in simple, pla
 ### How It Works:
 - Failed login timestamps are stored in memory mapped to `client_ip:identifier`. Old timestamps outside the 60-second sliding window are evicted; if the active count reaches 5, an HTTP 429 exception is raised before checking the database.
 - Image decoding strictly checks Base64 headers, byte lengths, and PIL format integrity before passing arrays to OpenCV or face_recognition.
+
+
+## 4. Tests, Code Quality & Continuous Integration (`test: add edge-case tests, ruff configuration, and CI workflow`)
+
+### What Changed:
+1. **Added Comprehensive Edge-Case Test Suite (`tests/test_edge_cases.py`)**:
+   - `test_face_mismatch_rejection`: Confirms live face vector far from registered profile produces `is_matched=False`.
+   - `test_outside_geofence_rejection`: Confirms coordinates outside the 100m geofence perimeter fail verification.
+   - `test_shift_arrival_status_boundary`: Validates strict arrival time boundaries around `09:30` (early vs late).
+   - `test_invalid_image_upload_rejected`: Validates corrupt base64 strings return HTTP 400 Bad Request.
+   - `test_login_rate_limiting_trigger`: Validates that burst attempts trigger HTTP 429 Too Many Requests.
+2. **Added GitHub Actions CI Pipeline (`.github/workflows/ci.yml`)**: Automatically runs on every push and pull request to test Python 3.11 compatibility, install dependencies, run `ruff` linting, and execute the full 35-test pytest suite.
+3. **Configured Ruff & Black in `pyproject.toml`**: Established strict modern Python linting standards (PEP 8, import sorting, line length formatting).
+
+### Why This Was Done (Interview Answer):
+- Freshers often claim "I wrote tests", but interviewers look for **edge cases** (boundaries, rate limiting, bad inputs).
+- A green GitHub Actions badge proves to recruiters that your project builds cleanly and all automated tests pass in an isolated Linux environment without manual intervention.
+
+### How It Works:
+- GitHub Actions spins up an Ubuntu runner, checks out the code, provisions Python 3.11, installs requirements, executes `ruff check`, and runs `pytest -v` with environment variables.

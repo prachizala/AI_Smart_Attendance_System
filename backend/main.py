@@ -1,18 +1,22 @@
-import os
+import base64
+import hashlib
+import hmac
 import logging
-from datetime import datetime, date, timedelta
-from typing import Optional, List
-from fastapi import FastAPI, Depends, HTTPException, Header, Request, status
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from sqlalchemy.orm import Session
-from passlib.context import CryptContext
-from jose import JWTError, jwt
+import os
+import time
+from datetime import date, datetime, timedelta
+from typing import List, Optional
+
+import models
 
 # Database & Models
-from database import engine, Base, get_db
-import models
+from database import Base, engine, get_db
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
+from jose import jwt
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from sqlalchemy.orm import Session
 
 # Initialize SQLite database tables
 Base.metadata.create_all(bind=engine)
@@ -34,10 +38,15 @@ _auto_migrate_sqlite()
 
 # Security & App Configuration (Centralized auth module)
 from auth import (
-    SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, pwd_context,
-    verify_password, get_password_hash, create_token,
-    get_current_user, get_current_admin
+    ALGORITHM,
+    SECRET_KEY,
+    create_token,
+    get_current_admin,
+    get_current_user,
+    get_password_hash,
+    verify_password,
 )
+
 
 # Automatic First-Boot Seeding for Academic Demonstrations
 def _ensure_initial_seed():
@@ -131,8 +140,10 @@ async def safe_exception_handler(request: Request, exc: Exception):
     )
 
 # Mount Modular Routes (Supporting both direct and /api prefixes)
-from routes.attendance import router as core_attendance_router, resolve_user
+from routes.attendance import resolve_user
+from routes.attendance import router as core_attendance_router
 from routes.payroll import router as core_payroll_router
+
 app.include_router(core_attendance_router)
 app.include_router(core_attendance_router, prefix="/api")
 app.include_router(core_payroll_router)
@@ -925,11 +936,11 @@ def get_all_leaves(
 ):
     leaves = db.query(models.LeaveRequest).order_by(models.LeaveRequest.id.desc()).all()
     results = []
-    for l in leaves:
-        lr = LeaveResponse.model_validate(l)
-        if l.user:
-            lr.employee_id = l.user.employee_id
-            lr.employee_name = l.user.full_name
+    for leave_item in leaves:
+        lr = LeaveResponse.model_validate(leave_item)
+        if leave_item.user:
+            lr.employee_id = leave_item.user.employee_id
+            lr.employee_name = leave_item.user.full_name
         results.append(lr)
     return results
 
@@ -941,11 +952,11 @@ def get_pending_leaves(
 ):
     leaves = db.query(models.LeaveRequest).filter(models.LeaveRequest.status == "pending").order_by(models.LeaveRequest.id.desc()).all()
     results = []
-    for l in leaves:
-        lr = LeaveResponse.model_validate(l)
-        if l.user:
-            lr.employee_id = l.user.employee_id
-            lr.employee_name = l.user.full_name
+    for leave_item in leaves:
+        lr = LeaveResponse.model_validate(leave_item)
+        if leave_item.user:
+            lr.employee_id = leave_item.user.employee_id
+            lr.employee_name = leave_item.user.full_name
         results.append(lr)
     return results
 
@@ -962,7 +973,7 @@ def review_leave(
     leave = db.query(models.LeaveRequest).filter(models.LeaveRequest.id == leave_id).first()
     if not leave:
         raise HTTPException(status_code=404, detail="Leave request not found")
-    
+
     if status_update.lower() not in ["approved", "rejected"]:
         raise HTTPException(status_code=400, detail="Status must be 'approved' or 'rejected'")
 
@@ -1041,11 +1052,11 @@ def get_user_leaves(
             )
     leaves = db.query(models.LeaveRequest).filter(models.LeaveRequest.user_id == user_id).order_by(models.LeaveRequest.id.desc()).all()
     results = []
-    for l in leaves:
-        lr = LeaveResponse.model_validate(l)
-        if l.user:
-            lr.employee_id = l.user.employee_id
-            lr.employee_name = l.user.full_name
+    for leave_item in leaves:
+        lr = LeaveResponse.model_validate(leave_item)
+        if leave_item.user:
+            lr.employee_id = leave_item.user.employee_id
+            lr.employee_name = leave_item.user.full_name
         results.append(lr)
     return results
 
@@ -1235,7 +1246,7 @@ def chatbot_query(
     # Resilient fallback: active admin or any active user in db so bot never 404s
     if not user:
         user = (
-            db.query(models.User).filter(models.User.role == "admin", models.User.is_active == True).first()
+            db.query(models.User).filter(models.User.role == "admin", models.User.is_active.is_(True)).first()
             or db.query(models.User).first()
         )
 
@@ -1256,7 +1267,7 @@ def chatbot_query(
 # ==========================================
 # Domain 6: Reports & Document Exporter
 # ==========================================
-from fastapi.responses import Response
+
 
 @app.get("/api/reports/attendance/csv", tags=["Reports"])
 @app.get("/reports/attendance/csv", tags=["Reports"])
@@ -1408,7 +1419,7 @@ def get_attendance_leaderboard(
     """
     from services.chatbot_service import calculate_punctuality_score
     users = db.query(models.User).filter(
-        models.User.is_active == True,
+        models.User.is_active.is_(True),
         models.User.role != "admin"
     ).all()
 
@@ -1453,9 +1464,7 @@ def get_attendance_leaderboard(
 # ==========================================
 # Domain 8: Dynamic Anti-Screenshot QR Kiosk
 # ==========================================
-import hmac
-import hashlib
-import time
+
 
 class KioskPunchPayload(BaseModel):
     user_id: Optional[int] = None
@@ -1498,7 +1507,12 @@ def verify_kiosk_punch(
     Verifies dynamic gate QR scan and marks biometric attendance.
     Requires device within 100m geofence and valid unexpired 30s HMAC token.
     """
-    from services.geofence import is_within_geofence, calculate_haversine_distance, OFFICE_LATITUDE, OFFICE_LONGITUDE, GEOFENCE_RADIUS_METERS
+    from services.geofence import (
+        GEOFENCE_RADIUS_METERS,
+        OFFICE_LATITUDE,
+        OFFICE_LONGITUDE,
+        calculate_haversine_distance,
+    )
 
     # 1. Resolve User
     user = None

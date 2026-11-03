@@ -1,11 +1,14 @@
-import pytest
 import json
 import uuid
 from unittest.mock import patch
+
+import models
+import pytest
+from database import SessionLocal
 from fastapi.testclient import TestClient
 from main import app
-from database import SessionLocal
-import models
+
+from tests.helpers import get_admin_headers
 
 client = TestClient(app)
 
@@ -13,7 +16,7 @@ OFFICE_LAT = 23.002217
 OFFICE_LON = 72.455763
 
 
-from tests.helpers import get_admin_headers
+
 
 def test_full_attendance_lifecycle():
     uid = uuid.uuid4().hex[:6].upper()

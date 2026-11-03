@@ -1,15 +1,18 @@
-import pytest
 import uuid
 from datetime import date
+
+import models
+import pytest
+from database import SessionLocal
 from fastapi.testclient import TestClient
 from main import app
-from database import SessionLocal
-import models
+
+from tests.helpers import get_admin_headers
 
 client = TestClient(app)
 
 
-from tests.helpers import get_admin_headers
+
 
 def test_leave_application_and_approval():
     uid = uuid.uuid4().hex[:6].upper()

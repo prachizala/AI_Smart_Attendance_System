@@ -7,7 +7,7 @@
 [![React Native](https://img.shields.io/badge/React_Native-Expo-black.svg)](https://expo.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-An academic, dual-factor attendance and workforce management platform combining **biometric facial verification (OpenCV)**, **GPS geofencing (Haversine formula)**, and an **interactive admin analytics portal**. Developed as a BCA (Bachelor of Computer Applications) Minor Project at Ahmedabad, Gujarat.
+An academic, dual-factor attendance and workforce management platform combining **biometric facial verification (OpenCV)**, **GPS geofencing (Haversine formula)**, and an **interactive admin analytics portal**. Developed as an official BCA 5th Semester Minor Project & Smart India Hackathon (SIH 2026 Internal 2nd Place, Team CyberForge) submission at Ahmedabad, Gujarat.
 
 ---
 

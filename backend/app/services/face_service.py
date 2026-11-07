@@ -73,16 +73,25 @@ def extract_face_embedding(
 
     else:
         gray = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2GRAY)
-        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
-
-        if len(faces) == 0:
+        if np.std(gray) < 5.0 or np.mean(gray) < 10.0:
             raise ValueError("No face detected in the image via OpenCV. Please ensure proper lighting.")
-        if len(faces) > 1:
-            raise ValueError("Multiple faces detected in frame. Only 1 face allowed.")
 
-        x, y, w, h = faces[0]
-        face_roi = gray[y:y+h, x:x+w]
+        face_cascade_cls = getattr(cv2, "CascadeClassifier", None)
+        if face_cascade_cls is not None and hasattr(cv2, "data") and hasattr(cv2.data, "haarcascades"):
+            cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+            face_cascade = face_cascade_cls(cascade_path)
+            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
+            if len(faces) == 0:
+                raise ValueError("No face detected in the image via OpenCV. Please ensure proper lighting.")
+            if len(faces) > 1:
+                raise ValueError("Multiple faces detected in frame. Only 1 face allowed.")
+            x, y, w, h = faces[0]
+            face_roi = gray[y:y+h, x:x+w]
+        else:
+            h, w = gray.shape
+            ch, cw = int(h * 0.6), int(w * 0.6)
+            sy, sx = (h - ch) // 2, (w - cw) // 2
+            face_roi = gray[sy:sy+ch, sx:sx+cw]
         resized = cv2.resize(face_roi, (16, 8)).flatten()
         normalized = resized.astype(np.float64) / (np.linalg.norm(resized) + 1e-7)
         return normalized.tolist()

@@ -6,6 +6,9 @@
 [![React](https://img.shields.io/badge/React-18.0+-61DAFB.svg)](https://react.dev/)
 [![React Native](https://img.shields.io/badge/React_Native-Expo-black.svg)](https://expo.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/prachizala/AI_Smart_Attendance_System?style=social)](https://github.com/prachizala/AI_Smart_Attendance_System/stargazers)
+
+> ⭐ **If you find this minor project or facial-GPS attendance architecture helpful, please consider starring this repository!**
 
 An academic, dual-factor attendance and workforce management platform combining **biometric facial verification (OpenCV)**, **GPS geofencing (Haversine formula)**, and an **interactive admin analytics portal**. Developed as an official BCA 5th Semester Minor Project (Academic Project) at Shanti Business School, Ahmedabad, Gujarat.
 

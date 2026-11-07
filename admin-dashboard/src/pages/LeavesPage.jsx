@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { adminApi } from '../api/adminClient';
 import { CalendarOff, CheckCircle2, XCircle, Clock, Filter, X } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function LeavesPage({ leaves, onReload }) {
+  const { t } = useLanguage();
   const [selectedLeave, setSelectedLeave] = useState(null);
   const [actionType, setActionType] = useState('approved');
   const [remarks, setRemarks] = useState('');
@@ -35,14 +37,14 @@ export default function LeavesPage({ leaves, onReload }) {
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
-              Leave Approvals Panel
+              {t('leavesTitle')}
             </h2>
             <span className="text-xs font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/70 px-2.5 py-0.5 rounded-full border border-purple-200 dark:border-purple-800">
               {leaves?.filter(l => l.status === 'pending').length || 0} Pending
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Review, approve, or reject employee leave requests. Approved leaves automatically count towards paid academic payroll days.
+            {t('leavesSubtitle')}
           </p>
         </div>
 

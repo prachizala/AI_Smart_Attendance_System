@@ -10,6 +10,7 @@ import {
   Check
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import ThemeToggle from './ThemeToggle';
 import LanguageSelector from './LanguageSelector';
 import NotificationsDropdown from './NotificationsDropdown';
@@ -24,6 +25,7 @@ export default function TopBar({
   pendingLeavesCount = 0
 }) {
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
   return (
@@ -48,7 +50,7 @@ export default function TopBar({
               type="text"
               value={searchQuery || ''}
               onChange={(e) => setSearchQuery && setSearchQuery(e.target.value)}
-              placeholder="Search employee, records, ID..."
+              placeholder={t('searchPlaceholder')}
               className="w-full bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 rounded-xl pl-10 pr-4 py-2 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:bg-white dark:focus:bg-slate-900 transition shadow-xs"
             />
           </div>
@@ -65,7 +67,7 @@ export default function TopBar({
             aria-label="Sync Real-Time Data"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-indigo-600 dark:text-indigo-400' : ''}`} />
-            <span className="hidden sm:inline">Sync</span>
+            <span className="hidden sm:inline">{isRefreshing ? t('syncing') : t('sync')}</span>
           </button>
 
           {/* Language Selector */}
@@ -97,7 +99,7 @@ export default function TopBar({
                   {user?.full_name || user?.employee_id || 'Admin'}
                 </span>
                 <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold uppercase tracking-wider">
-                  {user?.designation || 'Administrator'}
+                  {user?.designation || t('adminRole')}
                 </span>
               </div>
 
@@ -124,7 +126,7 @@ export default function TopBar({
                   <div className="px-2 py-1.5">
                     <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300">
                       <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                      <span>Role: Administrator</span>
+                      <span>Role: {t('adminRole')}</span>
                     </div>
                   </div>
 
@@ -137,7 +139,7 @@ export default function TopBar({
                       className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
                     >
                       <LogOut className="w-3.5 h-3.5" />
-                      <span>Sign Out</span>
+                      <span>{t('signOut')}</span>
                     </button>
                   </div>
                 </div>

@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { Calculator, Calendar, Info, CheckCircle, FileText } from 'lucide-react';
 import { adminApi } from '../api/adminClient';
 import PayslipModal from '../components/PayslipModal';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function PayrollPage({ payrolls, onReload }) {
+  const { t } = useLanguage();
   const [month, setMonth] = useState(10);
   const [year, setYear] = useState(2026);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -49,10 +51,10 @@ export default function PayrollPage({ payrolls, onReload }) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
-            Academic Payroll Module
+            {t('payrollTitle')}
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Automated compensation calculation grounded in verified biometric attendance & approved leaves.
+            {t('payrollSubtitle')}
           </p>
         </div>
 

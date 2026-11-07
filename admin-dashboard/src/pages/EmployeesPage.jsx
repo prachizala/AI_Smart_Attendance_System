@@ -3,8 +3,10 @@ import { UserPlus, Check, X, ShieldAlert, Users, Search, Camera } from 'lucide-r
 import { adminApi } from '../api/adminClient';
 import PasswordInput from '../components/PasswordInput';
 import FaceEnrollmentModal from '../components/FaceEnrollmentModal';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function EmployeesPage({ employees, onReload }) {
+  const { t } = useLanguage();
   const [showModal, setShowModal] = useState(false);
   const [enrollFaceEmployee, setEnrollFaceEmployee] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,14 +60,14 @@ export default function EmployeesPage({ employees, onReload }) {
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
-              Workforce Registry
+              {t('employeesTitle')}
             </h2>
             <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/70 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
               {employees?.length || 0} Registered
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Manage employee identities, biometric face registration status, and base compensation.
+            {t('employeesSubtitle')}
           </p>
         </div>
 
@@ -75,7 +77,7 @@ export default function EmployeesPage({ employees, onReload }) {
             <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search employee..."
+              placeholder={t('searchEmployees')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 w-44 sm:w-56"
@@ -87,7 +89,7 @@ export default function EmployeesPage({ employees, onReload }) {
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
           >
             <UserPlus className="w-4 h-4" />
-            Add Employee
+            {t('addEmployee')}
           </button>
         </div>
       </div>

@@ -17,8 +17,10 @@ import {
   Eye
 } from 'lucide-react';
 import { adminApi } from '../api/adminClient';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function HRIntelligencePage({ employees = [] }) {
+  const { t } = useLanguage();
   const [activeSubTab, setActiveSubTab] = useState('anomalies'); // 'anomalies' | 'overtime' | 'payslips'
   const [anomalies, setAnomalies] = useState([]);
   const [overtimeSummary, setOvertimeSummary] = useState(null);
@@ -106,13 +108,13 @@ export default function HRIntelligencePage({ employees = [] }) {
             </div>
             <div>
               <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                HR Security & Overtime Engine
+                {t('hrSecurityTitle')}
                 <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                   AI Active
                 </span>
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Automated Impossible Velocity Detection, AI Anti-Spoofing Audits, and Instant Payslip Generation
+                {t('hrSecuritySubtitle')}
               </p>
             </div>
           </div>

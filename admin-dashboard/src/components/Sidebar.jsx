@@ -11,6 +11,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import BrandLogo from './BrandLogo';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Sidebar({ 
   activeTab, 
@@ -20,12 +21,14 @@ export default function Sidebar({
   mobileOpen, 
   setMobileOpen 
 }) {
+  const { t } = useLanguage();
+
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
-    { id: 'employees', label: 'Employees', icon: Users, badge: null },
-    { id: 'leaves', label: 'Leave Requests', icon: CalendarOff, badge: null },
-    { id: 'payroll', label: 'Academic Payroll', icon: CreditCard, badge: null },
-    { id: 'hr-security', label: 'HR Security & Overtime', icon: ShieldAlert, badge: 'AI Engine' },
+    { id: 'dashboard', label: t('navDashboard'), icon: LayoutDashboard, badge: null },
+    { id: 'employees', label: t('navEmployees'), icon: Users, badge: null },
+    { id: 'leaves', label: t('navLeaves'), icon: CalendarOff, badge: null },
+    { id: 'payroll', label: t('navPayroll'), icon: CreditCard, badge: null },
+    { id: 'hr-security', label: t('navHrSecurity'), icon: ShieldAlert, badge: t('aiEngineBadge') },
   ];
 
   const handleSelect = (id) => {
@@ -42,13 +45,13 @@ export default function Sidebar({
           {(!isCollapsed || mobileOpen) && (
             <div className="truncate">
               <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-1.5 truncate">
-                Smart Attendance
+                {t('appTitle')}
                 <span className="text-[9px] uppercase font-bold tracking-widest bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800">
-                  Admin
+                  {t('adminBadge')}
                 </span>
               </h2>
               <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
-                Workforce & Biometrics
+                {t('subTag')}
               </p>
             </div>
           )}
@@ -87,28 +90,25 @@ export default function Sidebar({
                   isActive ? 'text-white' : 'text-slate-400 dark:text-slate-500 group-hover:text-indigo-600 dark:group-hover:text-indigo-400'
                 }`}
               />
-
               {(!isCollapsed || mobileOpen) && (
                 <span className="truncate flex-1 text-left">{item.label}</span>
               )}
-
-              {/* Active Indicator Strip */}
-              {isActive && isCollapsed && !mobileOpen && (
-                <div className="absolute right-0 top-2 bottom-2 w-1 bg-white rounded-l-full" />
+              {item.badge && (!isCollapsed || mobileOpen) && (
+                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                  {item.badge}
+                </span>
               )}
             </button>
           );
         })}
       </nav>
 
-      {/* College Project Badge / System Status */}
+      {/* College Project Footer Badge */}
       {(!isCollapsed || mobileOpen) && (
-        <div className="p-3 mx-3 mb-3 bg-gradient-to-br from-indigo-50/70 to-teal-50/50 dark:from-slate-800/70 dark:to-indigo-950/40 rounded-2xl border border-indigo-100/80 dark:border-slate-700/60">
-          <div className="flex items-center gap-2 mb-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-            <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200">
-              BCA Minor Project
-            </span>
+        <div className="p-3.5 m-3 rounded-2xl bg-indigo-50/50 dark:bg-slate-800/50 border border-indigo-100/60 dark:border-slate-800">
+          <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-bold text-[11px] mb-1">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{t('academicHeader')}</span>
           </div>
           <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
             FastAPI + OpenCV 128-D + Geofence 100m Authoritative System

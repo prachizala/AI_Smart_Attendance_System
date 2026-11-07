@@ -3,8 +3,11 @@ import { Users, UserCheck, Clock, UserX, CalendarOff, MapPin, CheckCircle2, XCir
 import GeofenceMap from '../components/GeofenceMap';
 import PunctualityLeaderboard from '../components/PunctualityLeaderboard';
 import QRKioskModal from '../components/QRKioskModal';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function DashboardPage({ stats, todayLogs, isLoading }) {
+  const { t } = useLanguage();
+
   const mapPunches = (todayLogs || []).map((log, idx) => ({
     id: log.id || `log-${idx}`,
     name: log.employee_name || 'Employee',
@@ -15,9 +18,10 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
     offsetX: 50 + (Math.cos(idx * 2.1) * Math.min(36, (log.distance_meters || 25) * 0.32)),
     offsetY: 50 + (Math.sin(idx * 2.1) * Math.min(36, (log.distance_meters || 25) * 0.32)),
   }));
+
   const cards = [
     {
-      title: 'Total Employees',
+      title: t('totalEmployees'),
       value: stats?.total_employees || 0,
       icon: Users,
       bg: 'bg-indigo-50/70 dark:bg-indigo-950/40',
@@ -25,7 +29,7 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
       iconColor: 'text-indigo-600 dark:text-indigo-400',
     },
     {
-      title: 'Present Today',
+      title: t('presentToday'),
       value: stats?.present_today || 0,
       icon: UserCheck,
       bg: 'bg-emerald-50/70 dark:bg-emerald-950/40',
@@ -33,7 +37,7 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
       iconColor: 'text-emerald-600 dark:text-emerald-400',
     },
     {
-      title: 'Late Arrivals',
+      title: t('lateArrivals'),
       value: stats?.late_today || 0,
       icon: Clock,
       bg: 'bg-amber-50/70 dark:bg-amber-950/40',
@@ -41,7 +45,7 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
       iconColor: 'text-amber-600 dark:text-amber-400',
     },
     {
-      title: 'On Approved Leave',
+      title: t('onApprovedLeave'),
       value: stats?.on_leave_today || 0,
       icon: CalendarOff,
       bg: 'bg-purple-50/70 dark:bg-purple-950/40',
@@ -49,7 +53,7 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
       iconColor: 'text-purple-600 dark:text-purple-400',
     },
     {
-      title: 'Absent / Unreported',
+      title: t('absentUnreported'),
       value: stats?.absent_today || 0,
       icon: UserX,
       bg: 'bg-rose-50/70 dark:bg-rose-950/40',
@@ -112,7 +116,9 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">Today's Real-Time Attendance Log</h2>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
+              {t('liveAttendanceFeed')}
+            </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Live timestamps with verified 128-D OpenCV face embeddings and Haversine GPS distances.
             </p>
@@ -124,7 +130,7 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
               title="Download Excel spreadsheet of today's attendance"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Export Excel</span>
+              <span>{t('exportCsv')}</span>
             </button>
             <button
               onClick={handlePrintReport}
@@ -132,7 +138,7 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
               title="Print daily attendance sheet"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>Print Sheet</span>
+              <span>{t('printReport')}</span>
             </button>
             <button
               onClick={() => setShowQRKiosk(true)}
@@ -140,7 +146,7 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
               title="Launch Dynamic Anti-Screenshot Gate QR Kiosk"
             >
               <QrCode className="w-3.5 h-3.5" />
-              <span>Gate Kiosk QR</span>
+              <span>{t('qrKiosk')}</span>
             </button>
             <span className="hidden md:inline-block text-xs bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 px-3 py-1 rounded-full border border-indigo-200 dark:border-indigo-800 font-mono font-medium">
               Radius: 100m
@@ -152,12 +158,12 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
           <table className="w-full text-left text-sm text-slate-700 dark:text-slate-300">
             <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 text-xs uppercase font-semibold border-b border-slate-200 dark:border-slate-800">
               <tr>
-                <th className="py-3 px-4">Employee</th>
+                <th className="py-3 px-4">{t('colEmployee')}</th>
                 <th className="py-3 px-4">Check-In</th>
                 <th className="py-3 px-4">Check-Out</th>
-                <th className="py-3 px-4">Face Check</th>
-                <th className="py-3 px-4">GPS Geofence</th>
-                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4">{t('colBiometricScore')}</th>
+                <th className="py-3 px-4">{t('colDistance')}</th>
+                <th className="py-3 px-4">{t('colStatus')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
@@ -181,22 +187,22 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
                         </span>
                       ) : log.face_verified ? (
                         <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500" /> 128-D Match
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500" /> {t('verified')}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-rose-700 dark:text-rose-400 text-xs font-medium">
-                          <XCircle className="w-4 h-4 text-rose-500" /> Failed
+                          <XCircle className="w-4 h-4 text-rose-500" /> {t('flagged')}
                         </span>
                       )}
                     </td>
                     <td className="py-3 px-4">
                       {log.location_verified ? (
                         <span className="inline-flex items-center gap-1 text-indigo-700 dark:text-indigo-400 text-xs font-medium">
-                          <MapPin className="w-4 h-4 text-indigo-500" /> Inside ({log.distance_meters}m)
+                          <MapPin className="w-4 h-4 text-indigo-500" /> {t('insideCampus')} ({log.distance_meters}m)
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-rose-700 dark:text-rose-400 text-xs font-medium">
-                          <MapPin className="w-4 h-4 text-rose-500" /> Outside
+                          <MapPin className="w-4 h-4 text-rose-500" /> {t('outsideCampus')}
                         </span>
                       )}
                     </td>
@@ -208,7 +214,7 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
                             : 'bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800'
                         }`}
                       >
-                        {log.status}
+                        {log.status === 'present' ? t('statusPresent') : log.status === 'late' ? t('statusLate') : log.status}
                       </span>
                     </td>
                   </tr>
@@ -216,7 +222,7 @@ export default function DashboardPage({ stats, todayLogs, isLoading }) {
               ) : (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-slate-400 dark:text-slate-500 text-sm">
-                    No attendance records registered yet today.
+                    {t('noLogsToday')}
                   </td>
                 </tr>
               )}

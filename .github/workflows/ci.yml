@@ -42,4 +42,12 @@ jobs:
           FACE_MATCH_THRESHOLD: 0.50
         run: |
           cd backend
-          python -m pytest -v
+          set -o pipefail
+          python -m pytest -v --tb=short 2>&1 | tee pytest_output.log
+
+      - name: Upload Pytest Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-report
+          path: backend/pytest_output.log

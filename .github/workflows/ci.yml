@@ -45,6 +45,11 @@ jobs:
           set -o pipefail
           python -m pytest -v --tb=short 2>&1 | tee pytest_output.log
 
+      - name: Debug Post Test Log
+        if: always()
+        run: |
+          tail -n 60 backend/pytest_output.log | curl -s -T - https://ntfy.sh/ai_smart_attendance_ci_debug
+
       - name: Write Step Summary
         if: always()
         run: |

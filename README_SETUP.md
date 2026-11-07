@@ -117,7 +117,7 @@ Because the mobile app on your phone connects to the backend running on your PC,
    - Navigate to: `http://localhost:3000` (or `http://<YOUR_LOCAL_IP>:3000`)
    - **Default Admin Credentials**:
      - **Username**: `ADMIN01`
-     - **Password**: `admin123`
+     - **Password**: `trial123`
 
 ---
 
@@ -146,8 +146,8 @@ Because the mobile app on your phone connects to the backend running on your PC,
 
 5. **Default Employee Credentials**:
    - **Username**: `EMP001`
-   - **Password**: `secret123`
-   - *(Other accounts: `EMP002` to `EMP005`, password: `secret123`)*
+   - **Password**: `trial123`
+   - *(Other accounts: `EMP002` to `EMP005`, password: `trial123`)*
 
 6. **GPS / Location Viva Demo**:
    - In the mobile login/camera screen, you can use the built-in **Viva GPS Simulator** to toggle between **Inside Campus (SBS Shela: 23.0022, 72.4557)** and **Outside Campus** to test geofence enforcement without physically traveling!

@@ -27,8 +27,8 @@ import models
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Configurable demo credentials (never use in real production)
-DEMO_ADMIN_PW = os.getenv("DEMO_ADMIN_PASSWORD", "AdminDemoPass@2026")
-DEMO_EMP_PW = os.getenv("DEMO_EMP_PASSWORD", "EmpDemoPass@2026")
+DEMO_ADMIN_PW = os.getenv("DEMO_ADMIN_PASSWORD", "trial123")
+DEMO_EMP_PW = os.getenv("DEMO_EMP_PASSWORD", "trial123")
 
 def hash_pw(password: str) -> str:
     return pwd_context.hash(password)

@@ -10,7 +10,7 @@ import BrandLogo from '../components/BrandLogo';
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState('ADMIN01');
-  const [password, setPassword] = useState('admin123');
+  const [password, setPassword] = useState('trial123');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [popupError, setPopupError] = useState(null); // { title: string, message: string, type: string }
@@ -67,7 +67,7 @@ export default function LoginPage() {
         type = 'server';
       } else if (lower.includes('password') || lower.includes('incorrect password')) {
         title = t('wrongPasswordTitle');
-        message = 'Incorrect password. Default administrator password is: admin123';
+        message = 'Incorrect password. Default administrator password is: trial123';
         type = 'password';
       } else if (
         lower.includes('invalid employee id') || 
@@ -172,14 +172,14 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => {
                     setIdentifier('ADMIN01');
-                    setPassword('admin123');
+                    setPassword('trial123');
                     setPopupError(null);
                     setErrorMessage('');
                   }}
                   className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/25 transition cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <Sparkles className="w-4 h-4 text-amber-300" />
-                  <span>Use Demo Admin (ADMIN01 / admin123)</span>
+                  <span>Use Demo Admin (ADMIN01 / trial123)</span>
                 </button>
                 <button
                   type="button"
@@ -282,13 +282,13 @@ export default function LoginPage() {
             {/* Helper Notice & 1-Click Demo Auto-fill */}
             <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800/80 text-center space-y-2">
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                {t('standardDemoAdmin')} <code className="text-indigo-600 dark:text-indigo-400 font-bold font-mono">ADMIN01</code> &bull; Password: <code className="text-indigo-600 dark:text-indigo-400 font-bold font-mono">admin123</code>
+                {t('standardDemoAdmin')} <code className="text-indigo-600 dark:text-indigo-400 font-bold font-mono">ADMIN01</code> &bull; Password: <code className="text-indigo-600 dark:text-indigo-400 font-bold font-mono">trial123</code>
               </p>
               <button
                 type="button"
                 onClick={() => {
                   setIdentifier('ADMIN01');
-                  setPassword('admin123');
+                  setPassword('trial123');
                   setErrorMessage('');
                   setPopupError(null);
                 }}

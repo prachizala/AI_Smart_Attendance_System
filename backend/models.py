@@ -71,8 +71,51 @@ class Attendance(Base):
     # Status: 'present', 'late', 'half_day', 'absent'
     status = Column(String(20), default="present", nullable=False)
 
+    # Overtime & Productivity Telemetry
+    working_hours = Column(Float, default=0.0, nullable=True)
+    overtime_minutes = Column(Integer, default=0, nullable=True)
+
+    # Anti-Spoofing & Liveness Telemetry
+    liveness_score = Column(Float, nullable=True)
+    liveness_verified = Column(Boolean, default=False, nullable=True)
+
+    # Anomaly & Fraud Flags
+    is_flagged = Column(Boolean, default=False, nullable=True)
+    flag_reason = Column(String(255), nullable=True)
+
     # Relationships
     user = relationship("User", back_populates="attendances")
+
+
+# ==========================================
+# Domain 3: HR Security Anomalies & Fraud Logs
+# ==========================================
+class AnomalyLog(Base):
+    __tablename__ = "anomaly_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    
+    # Anomaly taxonomy: 'IMPOSSIBLE_SPEED', 'SPOOF_ATTEMPT', 'RAPID_PUNCH', 'OFF_HOURS', 'MOCK_GPS'
+    anomaly_type = Column(String(50), nullable=False, index=True)
+    severity = Column(String(20), default="medium", nullable=False)  # 'low', 'medium', 'high', 'critical'
+    description = Column(Text, nullable=False)
+    
+    # Mathematical telemetry
+    distance_km = Column(Float, nullable=True)
+    time_delta_mins = Column(Float, nullable=True)
+    calculated_speed_kmh = Column(Float, nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    
+    resolved = Column(Boolean, default=False, nullable=False)
+    resolved_by = Column(String(100), nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    user = relationship("User", backref="anomaly_logs")
 
 
 # ==========================================

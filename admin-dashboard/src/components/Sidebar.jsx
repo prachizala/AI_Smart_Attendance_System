@@ -7,7 +7,8 @@ import {
   ChevronLeft, 
   ChevronRight, 
   X,
-  Sparkles
+  Sparkles,
+  ShieldAlert
 } from 'lucide-react';
 import BrandLogo from './BrandLogo';
 
@@ -24,6 +25,7 @@ export default function Sidebar({
     { id: 'employees', label: 'Employees', icon: Users, badge: null },
     { id: 'leaves', label: 'Leave Requests', icon: CalendarOff, badge: null },
     { id: 'payroll', label: 'Academic Payroll', icon: CreditCard, badge: null },
+    { id: 'hr-security', label: 'HR Security & Overtime', icon: ShieldAlert, badge: 'AI Engine' },
   ];
 
   const handleSelect = (id) => {

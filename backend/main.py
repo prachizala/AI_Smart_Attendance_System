@@ -5,7 +5,7 @@ import logging
 import os
 import time
 from datetime import date, datetime, timedelta
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import models
 
@@ -23,14 +23,24 @@ Base.metadata.create_all(bind=engine)
 
 # Auto-migrate SQLite schema for backward compatibility
 def _auto_migrate_sqlite():
+    cols_to_add = [
+        "ALTER TABLE attendance ADD COLUMN verification_method VARCHAR(30) DEFAULT 'face'",
+        "ALTER TABLE attendance ADD COLUMN working_hours FLOAT DEFAULT 0.0",
+        "ALTER TABLE attendance ADD COLUMN overtime_minutes INTEGER DEFAULT 0",
+        "ALTER TABLE attendance ADD COLUMN liveness_score FLOAT DEFAULT NULL",
+        "ALTER TABLE attendance ADD COLUMN liveness_verified BOOLEAN DEFAULT 0",
+        "ALTER TABLE attendance ADD COLUMN is_flagged BOOLEAN DEFAULT 0",
+        "ALTER TABLE attendance ADD COLUMN flag_reason VARCHAR(255) DEFAULT NULL"
+    ]
     try:
         with engine.connect() as conn:
             from sqlalchemy import text
-            try:
-                conn.execute(text("ALTER TABLE attendance ADD COLUMN verification_method VARCHAR(30) DEFAULT 'face'"))
-                conn.commit()
-            except Exception:
-                pass
+            for sql in cols_to_add:
+                try:
+                    conn.execute(text(sql))
+                    conn.commit()
+                except Exception:
+                    pass
     except Exception:
         pass
 
@@ -211,6 +221,11 @@ class AttendanceRecord(BaseModel):
     late_minutes: Optional[int] = None
     early_exit: Optional[bool] = None
     overtime_minutes: Optional[int] = None
+    working_hours: Optional[float] = None
+    liveness_score: Optional[float] = None
+    liveness_verified: Optional[bool] = None
+    is_flagged: Optional[bool] = None
+    flag_reason: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -529,6 +544,8 @@ class CheckInPayload(BaseModel):
     longitude: float = Field(..., ge=-180.0, le=180.0, json_schema_extra={"example": 72.455763})
     face_image_base64: str = Field(..., min_length=1, max_length=7000000, description="Base64 encoded live camera selfie")
     offline_timestamp: Optional[str] = Field(None, description="ISO timestamp recorded locally when device was offline")
+    challenge_type: Optional[str] = Field(None, description="Dynamic anti-spoofing challenge (e.g. blink, turn_left, turn_right, smile)")
+    baseline_image_base64: Optional[str] = Field(None, max_length=7000000, description="Baseline frame 1 before challenge")
 
 
 class BiometricPunchPayload(BaseModel):
@@ -583,14 +600,35 @@ def check_in(
             )
         )
 
-    # Gate 2: WHO Verification (Biometric Face Match)
+    # Gate 2: WHO Verification (Biometric Face Match + AI Anti-Spoofing Liveness)
     if not user.face_embedding:
         raise HTTPException(
             status_code=400,
             detail="No registered biometric profile found for employee. Please register your face first."
         )
 
-    from services.face_service import extract_face_embedding, verify_face
+    from services.face_service import extract_face_embedding, verify_face, analyze_liveness_and_spoof
+    from services.hr_anomaly_service import detect_punch_anomalies, log_spoof_anomaly
+
+    # 2a. Anti-Spoofing & Liveness Inspection (EAR / Spectrum / Challenge)
+    liveness_res = analyze_liveness_and_spoof(
+        image_input=payload.face_image_base64,
+        challenge_type=payload.challenge_type,
+        baseline_image_input=payload.baseline_image_base64
+    )
+
+    if liveness_res.get("spoof_detected"):
+        attack = liveness_res.get("attack_type") or "PROXY_PUNCH_DETECTED"
+        score = liveness_res.get("liveness_score", 0.0)
+        feedback = liveness_res.get("challenge_feedback") or "Liveness verification failed."
+        log_spoof_anomaly(db, user.id, attack, score, payload.latitude, payload.longitude)
+        db.commit()
+        raise HTTPException(
+            status_code=403,
+            detail=f"Anti-Spoofing Alert: {feedback} Proxy punch or fake photo detected ({attack}). Score: {score}%"
+        )
+
+    # 2b. Biometric 128-d Vector Match
     try:
         live_embedding = extract_face_embedding(payload.face_image_base64)
     except ValueError as ve:
@@ -633,6 +671,11 @@ def check_in(
     # Check late arrival (after 09:30 AM local/server time)
     attendance_status = "late" if now.time() > datetime.strptime("09:30", "%H:%M").time() else "present"
 
+    # Gate 4: Automated Anomaly Detection (Impossible Velocity / Rapid Punch)
+    anomaly_rec = detect_punch_anomalies(db, user, payload.latitude, payload.longitude, now)
+    is_anomaly_flagged = bool(anomaly_rec is not None and anomaly_rec.severity in ["critical", "high"])
+    anomaly_reason = anomaly_rec.description if anomaly_rec else None
+
     if existing_record:
         existing_record.check_in = now
         existing_record.face_verified = True
@@ -642,6 +685,10 @@ def check_in(
         existing_record.longitude = payload.longitude
         existing_record.distance_meters = geo_result["distance_meters"]
         existing_record.status = attendance_status
+        existing_record.liveness_score = liveness_res.get("liveness_score", 95.0)
+        existing_record.liveness_verified = True
+        existing_record.is_flagged = is_anomaly_flagged
+        existing_record.flag_reason = anomaly_reason
         record_to_return = existing_record
     else:
         new_attendance = models.Attendance(
@@ -654,7 +701,11 @@ def check_in(
             latitude=payload.latitude,
             longitude=payload.longitude,
             distance_meters=geo_result["distance_meters"],
-            status=attendance_status
+            status=attendance_status,
+            liveness_score=liveness_res.get("liveness_score", 95.0),
+            liveness_verified=True,
+            is_flagged=is_anomaly_flagged,
+            flag_reason=anomaly_reason
         )
         db.add(new_attendance)
         record_to_return = new_attendance
@@ -820,7 +871,21 @@ def check_out(
             detail=f"Already checked out for today at {record.check_out.strftime('%H:%M:%S')}"
         )
 
-    record.check_out = datetime.utcnow()
+    now_checkout = datetime.utcnow()
+    record.check_out = now_checkout
+    
+    # Automated Overtime & Hours Calculation
+    from services.hr_anomaly_service import compute_daily_overtime, detect_punch_anomalies
+    ot_data = compute_daily_overtime(record.check_in, now_checkout)
+    record.working_hours = ot_data["working_hours"]
+    record.overtime_minutes = ot_data["overtime_minutes"]
+    
+    # Anomaly check on check-out
+    ot_anomaly = detect_punch_anomalies(db, user, payload.latitude, payload.longitude, now_checkout)
+    if ot_anomaly and ot_anomaly.severity in ["critical", "high"]:
+        record.is_flagged = True
+        record.flag_reason = ot_anomaly.description
+
     db.commit()
     db.refresh(record)
 
@@ -1615,3 +1680,126 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
 
+
+
+# =====================================================================
+# Domain 8: HR Security Intelligence & Overtime Endpoints
+# =====================================================================
+
+@app.get("/api/attendance/liveness-challenge", tags=["Attendance"])
+def get_liveness_challenge():
+    """Generates a dynamic interactive challenge for anti-spoofing verification."""
+    import random
+    challenges = [
+        {"type": "blink", "instruction": "👁️ Blink your eyes naturally", "icon": "eye"},
+        {"type": "turn_left", "instruction": "↩️ Turn your head slightly to the LEFT", "icon": "arrow-left"},
+        {"type": "turn_right", "instruction": "↪️ Turn your head slightly to the RIGHT", "icon": "arrow-right"},
+        {"type": "smile", "instruction": "😃 Smile to verify liveness", "icon": "smile"}
+    ]
+    chosen = random.choice(challenges)
+    return {
+        "challenge_type": chosen["type"],
+        "instruction": chosen["instruction"],
+        "icon": chosen["icon"],
+        "timeout_seconds": 25,
+        "anti_spoofing_engine": "OpenCV+MediaPipe/Dlib EAR & Texture Spectrum"
+    }
+
+
+@app.post("/api/attendance/verify-liveness", tags=["Attendance"])
+def test_verify_liveness(payload: Dict[str, Any]):
+    """Tests a camera frame or pair of frames against the anti-spoofing engine."""
+    from services.face_service import analyze_liveness_and_spoof
+    img = payload.get("face_image_base64")
+    if not img:
+        raise HTTPException(status_code=400, detail="face_image_base64 is required")
+    c_type = payload.get("challenge_type")
+    base_img = payload.get("baseline_image_base64")
+    return analyze_liveness_and_spoof(img, challenge_type=c_type, baseline_image_input=base_img)
+
+
+@app.get("/api/hr/anomalies", tags=["HR Intelligence"])
+def get_hr_anomalies(
+    unresolved_only: bool = False,
+    severity: Optional[str] = None,
+    limit: int = 50,
+    db: Session = Depends(get_db)
+):
+    """Lists flagged anomalies (Impossible Velocity, Spoof Attacks, Rapid Punches)."""
+    query = db.query(models.AnomalyLog)
+    if unresolved_only:
+        query = query.filter(models.AnomalyLog.resolved == False)
+    if severity:
+        query = query.filter(models.AnomalyLog.severity == severity.lower())
+    anomalies = query.order_by(models.AnomalyLog.id.desc()).limit(limit).all()
+    res = []
+    for a in anomalies:
+        u = db.query(models.User).filter(models.User.id == a.user_id).first()
+        res.append({
+            "id": a.id,
+            "user_id": a.user_id,
+            "employee_id": u.employee_id if u else "N/A",
+            "employee_name": u.full_name if u else "Unknown",
+            "department": u.department if u else "General",
+            "anomaly_type": a.anomaly_type,
+            "severity": a.severity,
+            "description": a.description,
+            "distance_km": a.distance_km,
+            "time_delta_mins": a.time_delta_mins,
+            "calculated_speed_kmh": a.calculated_speed_kmh,
+            "latitude": a.latitude,
+            "longitude": a.longitude,
+            "resolved": a.resolved,
+            "resolved_by": a.resolved_by,
+            "resolved_at": a.resolved_at.isoformat() if a.resolved_at else None,
+            "created_at": a.created_at.isoformat() if a.created_at else None
+        })
+    return res
+
+
+@app.post("/api/hr/anomalies/{anomaly_id}/resolve", tags=["HR Intelligence"])
+def resolve_anomaly(anomaly_id: int, db: Session = Depends(get_db)):
+    """Resolves an anomaly flag."""
+    anomaly = db.query(models.AnomalyLog).filter(models.AnomalyLog.id == anomaly_id).first()
+    if not anomaly:
+        raise HTTPException(status_code=404, detail="Anomaly record not found")
+    anomaly.resolved = True
+    anomaly.resolved_at = datetime.utcnow()
+    anomaly.resolved_by = "Admin / HR Officer"
+    db.commit()
+    return {"status": "success", "message": f"Anomaly #{anomaly_id} marked as resolved."}
+
+
+@app.get("/api/hr/overtime-summary", tags=["HR Intelligence"])
+def get_hr_overtime_summary_route(month: Optional[int] = None, year: Optional[int] = None, db: Session = Depends(get_db)):
+    """Aggregates monthly overtime hours and financial liability."""
+    from services.hr_anomaly_service import get_monthly_overtime_summary
+    return get_monthly_overtime_summary(db, month, year)
+
+
+@app.get("/api/hr/export/payslips.csv", tags=["HR Intelligence"])
+def export_payslips_csv(month: Optional[int] = None, year: Optional[int] = None, db: Session = Depends(get_db)):
+    """Downloads instant CSV payslip breakdown for Excel/HR systems."""
+    from fastapi.responses import Response
+    from services.hr_anomaly_service import generate_monthly_payslips_csv
+    csv_data = generate_monthly_payslips_csv(db, month, year)
+    m = month or date.today().month
+    y = year or date.today().year
+    filename = f"SmartAttendance_Payslips_{y}_{m:02d}.csv"
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@app.get("/api/hr/payslip/{employee_identifier}", tags=["HR Intelligence"])
+def view_printable_payslip(employee_identifier: str, month: Optional[int] = None, year: Optional[int] = None, db: Session = Depends(get_db)):
+    """Renders a high-resolution, print-ready corporate HTML payslip."""
+    from fastapi.responses import HTMLResponse
+    from services.hr_anomaly_service import generate_payslip_html
+    try:
+        html = generate_payslip_html(db, employee_identifier, month, year)
+        return HTMLResponse(content=html, status_code=200)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))

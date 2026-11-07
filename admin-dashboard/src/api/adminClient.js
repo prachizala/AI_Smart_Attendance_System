@@ -154,6 +154,46 @@ export const adminApi = {
     const res = await adminClient.post('/api/payroll/process', data);
     return res.data;
   },
+
+  // HR Intelligence, Anti-Spoofing & Overtime Engine
+  getAnomalies: async (unresolvedOnly = false, severity = null) => {
+    let url = '/api/hr/anomalies';
+    const params = [];
+    if (unresolvedOnly) params.push('unresolved_only=true');
+    if (severity) params.push(`severity=${severity}`);
+    if (params.length > 0) url += `?${params.join('&')}`;
+    const res = await adminClient.get(url);
+    return res.data;
+  },
+  resolveAnomaly: async (anomalyId) => {
+    const res = await adminClient.post(`/api/hr/anomalies/${anomalyId}/resolve`);
+    return res.data;
+  },
+  getOvertimeSummary: async (month = null, year = null) => {
+    let url = '/api/hr/overtime-summary';
+    const params = [];
+    if (month) params.push(`month=${month}`);
+    if (year) params.push(`year=${year}`);
+    if (params.length > 0) url += `?${params.join('&')}`;
+    const res = await adminClient.get(url);
+    return res.data;
+  },
+  getPayslipHtmlUrl: (employeeId, month = null, year = null) => {
+    let url = `${API_BASE_URL}/api/hr/payslip/${employeeId}`;
+    const params = [];
+    if (month) params.push(`month=${month}`);
+    if (year) params.push(`year=${year}`);
+    if (params.length > 0) url += `?${params.join('&')}`;
+    return url;
+  },
+  getPayslipsCsvUrl: (month = null, year = null) => {
+    let url = `${API_BASE_URL}/api/hr/export/payslips.csv`;
+    const params = [];
+    if (month) params.push(`month=${month}`);
+    if (year) params.push(`year=${year}`);
+    if (params.length > 0) url += `?${params.join('&')}`;
+    return url;
+  },
 };
 
 export default adminClient;

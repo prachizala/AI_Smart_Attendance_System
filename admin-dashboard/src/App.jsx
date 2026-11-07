@@ -7,6 +7,7 @@ import AdminDashboard from './AdminDashboard';
 import EmployeesPage from './pages/EmployeesPage';
 import LeavesPage from './pages/LeavesPage';
 import PayrollPage from './pages/PayrollPage';
+import HRIntelligencePage from './pages/HRIntelligencePage';
 import LoginPage from './pages/LoginPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -28,6 +29,7 @@ function AdminWorkspaceLayout() {
     if (path.startsWith('/employees')) return 'employees';
     if (path.startsWith('/leaves')) return 'leaves';
     if (path.startsWith('/payroll')) return 'payroll';
+    if (path.startsWith('/hr-security')) return 'hr-security';
     return 'dashboard';
   };
 
@@ -43,6 +45,9 @@ function AdminWorkspaceLayout() {
         break;
       case 'payroll':
         navigate('/payroll');
+        break;
+      case 'hr-security':
+        navigate('/hr-security');
         break;
       case 'dashboard':
       default:
@@ -130,6 +135,9 @@ function AdminWorkspaceLayout() {
           {activeTab === 'payroll' && (
             <PayrollPage payrolls={payrolls} onReload={loadData} />
           )}
+          {activeTab === 'hr-security' && (
+            <HRIntelligencePage employees={employees} />
+          )}
         </main>
 
         {/* Footer */}
@@ -179,6 +187,14 @@ export default function App() {
           />
           <Route
             path="/leaves"
+            element={
+              <ProtectedRoute>
+                <AdminWorkspaceLayout />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/hr-security"
             element={
               <ProtectedRoute>
                 <AdminWorkspaceLayout />

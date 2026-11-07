@@ -1,14 +1,12 @@
 import calendar
 import csv
 import io
-import math
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import models
 from services.geo_service import calculate_haversine_distance
 from sqlalchemy.orm import Session
-
 
 # =====================================================================
 # Domain 1: Anomaly & Fraud Detection Engine (Impossible Velocity)
@@ -287,7 +285,7 @@ def generate_monthly_payslips_csv(
     _, num_days = calendar.monthrange(target_year, target_month)
     end_date = date(target_year, target_month, num_days)
 
-    employees = db.query(models.User).filter(models.User.is_active == True).all()
+    employees = db.query(models.User).filter(models.User.is_active.is_(True)).all()
 
     output = io.StringIO()
     writer = csv.writer(output)
@@ -340,9 +338,9 @@ def generate_monthly_payslips_csv(
             .all()
         )
         paid_leave_days = 0
-        for l in leaves:
-            ov_start = max(l.start_date, start_date)
-            ov_end = min(l.end_date, end_date)
+        for leave in leaves:
+            ov_start = max(leave.start_date, start_date)
+            ov_end = min(leave.end_date, end_date)
             if ov_end >= ov_start:
                 paid_leave_days += (ov_end - ov_start).days + 1
 
@@ -419,7 +417,7 @@ def generate_payslip_html(
 
     days_present = sum(0.5 if a.status == "half_day" else 1.0 for a in atts)
     total_ot_mins = sum(a.overtime_minutes or 0 for a in atts)
-    total_wh = sum(a.working_hours or 0.0 for a in atts)
+    # Total working hours summary\n    sum(a.working_hours or 0.0 for a in atts)
     ot_hours = round(total_ot_mins / 60.0, 2)
 
     # Approved leaves
@@ -433,7 +431,7 @@ def generate_payslip_html(
         )
         .all()
     )
-    paid_leave_days = sum((min(l.end_date, end_date) - max(l.start_date, start_date)).days + 1 for l in leaves)
+    paid_leave_days = sum((min(leave.end_date, end_date) - max(leave.start_date, start_date)).days + 1 for leave in leaves)
 
     base = float(user.base_salary or 30000.0)
     hra = round(base * 0.20, 2)  # 20% HRA

@@ -1,11 +1,21 @@
-from fastapi.testclient import TestClient
-from main import app
+import models
+from auth import create_token
+from database import SessionLocal
+
+_cached_token = None
 
 
 def get_admin_headers():
-    client = TestClient(app)
-    res = client.post("/api/auth/login", json={"identifier": "ADMIN01", "password": "admin123"})
-    if res.status_code == 200:
-        token = res.json()["access_token"]
-        return {"Authorization": f"Bearer {token}"}
-    return {}
+    global _cached_token
+    if _cached_token:
+        return {"Authorization": f"Bearer {_cached_token}"}
+
+    db = SessionLocal()
+    try:
+        admin = db.query(models.User).filter(models.User.role == "admin").first()
+        admin_id = admin.id if admin else 1
+    finally:
+        db.close()
+
+    _cached_token = create_token({"sub": str(admin_id), "role": "admin"})
+    return {"Authorization": f"Bearer {_cached_token}"}

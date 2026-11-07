@@ -42,24 +42,4 @@ jobs:
           FACE_MATCH_THRESHOLD: 0.50
         run: |
           cd backend
-          set -o pipefail
-          python -m pytest -v --tb=short 2>&1 | tee pytest_output.log
-
-      - name: Debug Post Test Log
-        if: always()
-        run: |
-          tail -n 60 backend/pytest_output.log | curl -s -T - https://ntfy.sh/ai_smart_attendance_ci_debug
-
-      - name: Write Step Summary
-        if: always()
-        run: |
-          echo "START_PYTEST_LOG" >> $GITHUB_STEP_SUMMARY
-          tail -n 80 backend/pytest_output.log >> $GITHUB_STEP_SUMMARY
-          echo "END_PYTEST_LOG" >> $GITHUB_STEP_SUMMARY
-
-      - name: Upload Pytest Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pytest-report
-          path: backend/pytest_output.log
+          python -m pytest -v

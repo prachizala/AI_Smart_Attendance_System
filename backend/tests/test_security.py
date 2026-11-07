@@ -147,8 +147,12 @@ def test_anti_impersonation_attendance_history():
 def test_anti_impersonation_leave_application():
     """An employee cannot submit a leave application claiming another employee's user_id."""
     login_res = client.post("/api/auth/login", json={"identifier": "ADMIN01", "password": "admin123"})
-    admin_token = login_res.json()["access_token"]
-    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    if login_res.status_code == 200 and "access_token" in login_res.json():
+        admin_token = login_res.json()["access_token"]
+        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    else:
+        from tests.helpers import get_admin_headers
+        admin_headers = get_admin_headers()
 
     # Register employee
     uid = uuid.uuid4().hex[:6].upper()

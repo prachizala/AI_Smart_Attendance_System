@@ -5,7 +5,7 @@ import logging
 import os
 import time
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import models
 
@@ -96,9 +96,10 @@ def _ensure_initial_seed():
                 )
                 db.add(emp1)
                 db.commit()
-            # Ensure all existing users in database have password set to trial123
+            # Ensure all existing users in database have password set to trial123 (hash computed only once)
+            trial_hash = get_password_hash("trial123")
             for u in db.query(models.User).all():
-                u.hashed_password = get_password_hash("trial123")
+                u.hashed_password = trial_hash
             db.commit()
         except Exception:
             db.rollback()

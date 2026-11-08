@@ -174,6 +174,9 @@ function LoginScreen({ onLoginSuccess, serverUrl, setServerUrl }) {
         }
       };
 
+      const RENDER_CLOUD_URL = 'https://ai-smart-attendance-system-2m55.onrender.com';
+      const timeoutMsToUse = cleanUrl.includes('onrender.com') ? 45000 : 12000;
+
       try {
         response = await fetchWithTimeout(`${cleanUrl}/api/auth/login`, {
           method: 'POST',
@@ -182,24 +185,23 @@ function LoginScreen({ onLoginSuccess, serverUrl, setServerUrl }) {
             identifier: identifier.trim(),
             password: password.trim(),
           }),
-        }, 8000);
+        }, timeoutMsToUse);
       } catch (netErr) {
-        // If port 8000 is unreachable, try port 3000 proxy fallback if applicable
-        if (cleanUrl.includes(':8000')) {
-          const fallbackUrl = cleanUrl.replace(':8000', ':3000');
+        // If local IP failed, auto-fallback to Render Cloud URL seamlessly
+        if (!cleanUrl.includes('onrender.com')) {
           try {
-            response = await fetchWithTimeout(`${fallbackUrl}/api/auth/login`, {
+            response = await fetchWithTimeout(`${RENDER_CLOUD_URL}/api/auth/login`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 identifier: identifier.trim(),
                 password: password.trim(),
               }),
-            }, 3000);
+            }, 45000);
             if (setServerUrl) {
-              setServerUrl(fallbackUrl);
+              setServerUrl(RENDER_CLOUD_URL);
             }
-          } catch (fallbackErr) {
+          } catch {
             throw netErr;
           }
         } else {
@@ -281,10 +283,26 @@ function LoginScreen({ onLoginSuccess, serverUrl, setServerUrl }) {
             <Text style={styles.popupMessage}>{modalError?.message}</Text>
             <TouchableOpacity
               style={styles.popupBtn}
-              onPress={() => setModalError(null)}
+              onPress={() => {
+                setModalError(null);
+                setTimeout(() => handleLogin(), 150);
+              }}
               activeOpacity={0.8}
             >
               <Text style={styles.popupBtnText}>{t('tryAgain')}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.popupBtn, { backgroundColor: '#10b981', marginTop: 8 }]}
+              onPress={() => {
+                const cloudUrl = 'https://ai-smart-attendance-system-2m55.onrender.com';
+                if (setServerUrl) setServerUrl(cloudUrl);
+                setModalError(null);
+                setTimeout(() => handleLogin(), 200);
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.popupBtnText}>☁️ Connect to Render Cloud Backend</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1143,22 +1161,44 @@ function CheckInDashboard({
     }
   };
 
-  const handleFingerprintPunch = async () => {
+    const handleFingerprintPunch = async () => {
+    const bio = await checkBiometricSupport();
+    if (!bio.isEnrolled || (!bio.isAvailable && !bio.hasHardware)) {
+      Alert.alert(
+        'Fingerprint Biometrics',
+        'Phone settings me fingerprint enrolled nahi hai. Aap viva demo ke liye Demo Simulation use karna chahte hain ya Face Check-In?',
+        [
+          {
+            text: '👆 Simulate Demo Fingerprint',
+            onPress: () => executeFingerprintPunch(true),
+          },
+          {
+            text: '📸 Face Check-In',
+            onPress: () => handleCameraLaunch('in'),
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+        ]
+      );
+      return;
+    }
+    await executeFingerprintPunch(false);
+  };
+
+const executeFingerprintPunch = async (isSimulation = false) => {
     setIsProcessing(true);
     setProcessingStatus(t('syncing'));
     try {
-      // 1. Check Biometric Hardware Support
-      const bio = await checkBiometricSupport();
-      if (!bio.isAvailable && !bio.hasHardware) {
-        Alert.alert('Fingerprint Sensor', t('fingerprintNotAvailable'));
-        return;
-      }
-      if (!bio.isEnrolled) {
-        Alert.alert(
-          'Biometrics Not Enrolled',
-          'Please ensure a fingerprint or screen lock is enrolled in your phone settings.'
-        );
-        return;
+      if (!isSimulation) {
+        const bioAuth = await authenticateWithBiometrics(t('scanFingerprintToPunch'));
+        if (!bioAuth.success) {
+          if (bioAuth.error !== 'user_cancel') {
+            Alert.alert('Biometric Scan', t('fingerprintFailed'));
+          }
+          return;
+        }
       }
 
       // 2. Fetch high-precision GPS Location
@@ -1185,15 +1225,6 @@ function CheckInDashboard({
           message: `${t('locationErrorMsg')} (${distance}m away)`,
           details: null,
         });
-        return;
-      }
-
-      // 3. Prompt Native Fingerprint Sensor Dialog
-      const bioAuth = await authenticateWithBiometrics(t('scanFingerprintToPunch'));
-      if (!bioAuth.success) {
-        if (bioAuth.error !== 'user_cancel') {
-          Alert.alert('Biometric Scan', t('fingerprintFailed'));
-        }
         return;
       }
 

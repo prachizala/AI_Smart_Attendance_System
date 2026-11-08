@@ -35,6 +35,10 @@ jobs:
           cd mobile
           npm ci || npm install
 
+      - name: Configure Production Environment
+        run: |
+          echo "EXPO_PUBLIC_API_URL=https://ai-smart-attendance-system-2m55.onrender.com" > mobile/.env
+
       - name: Run Expo Prebuild
         run: |
           cd mobile
@@ -47,6 +51,8 @@ jobs:
           cd mobile/android
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
+        env:
+          EXPO_PUBLIC_API_URL: https://ai-smart-attendance-system-2m55.onrender.com
 
       - name: Rename APK for Release
         run: |

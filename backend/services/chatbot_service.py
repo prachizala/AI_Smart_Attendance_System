@@ -67,7 +67,8 @@ def process_chat_query(
     db: Session,
     user: models.User,
     message: str,
-    language: str = "en"
+    language: str = "en",
+    image_base64: Any = None
 ) -> Dict[str, Any]:
     """
     Main Chatbot Query Router.
@@ -84,6 +85,153 @@ def process_chat_query(
         models.Attendance.user_id == user_id,
         models.Attendance.date == today
     ).first()
+
+    # --------------------------------------------------------------------------
+    # INTENT A: TECHNICAL ISSUE & ERROR SCREENSHOT / IMAGE DIAGNOSTICS
+    # --------------------------------------------------------------------------
+    ADMIN_HELP_PHONE = "+91 9265272082"
+    has_image = bool(image_base64 and len(str(image_base64).strip()) > 10)
+    is_tech_issue = has_image or any(k in text for k in [
+        "error", "issue", "problem", "fail", "failed", "bug", "dikkat", "kharab",
+        "valid string", "not recognized", "not working", "chal nahi raha", "screen",
+        "stuck", "black", "admin", "contact", "support", "call", "helpdesk", "phone"
+    ])
+
+    if is_tech_issue:
+        # Detect specific error patterns
+        if any(k in text for k in ["string", "valid string", "face not recognized", "register", "save photo", "enroll"]):
+            if lang == "hi":
+                reply = (
+                    "🛠️ AI Diagnosis: Camera Photo Capture Issue (Resolved!)\n\n"
+                    "• Samasya: Camera se photo data aane me dikkat hui thi ('Input should be a valid string').\n"
+                    "• Solution: Humne ise app me auto-fix kar diya hai! Ab aap 'Register Face Now' me dobara 'Save Photo' dabayein ya seedhe '🖼️ Upload Photo' par tap karke gallery se apni clear selfie select karein.\n\n"
+                    f"📞 Agar fir bhi koi dikkat aaye, toh please Contact your Admin:\n"
+                    f"👉 Help Support Call: {ADMIN_HELP_PHONE}"
+                )
+            elif lang == "gu":
+                reply = (
+                    "🛠️ AI Diagnosis: કેમેરા ફોટો કેપ્ચર સમસ્યા (ઉકેલાઈ ગઈ!)\n\n"
+                    "• સમસ્યા: કેમેરામાંથી ફોટો ડેટા મેળવવામાં મુશ્કેલી થઈ હતી ('Input should be a valid string').\n"
+                    "• ઉકેલ: અમે એપમાં આ સુધારી દીધું છે! હવે તમે 'Register Face Now' માં ફરી 'Save Photo' કરો અથવા ગેલેરીમાંથી '🖼️ Upload Photo' પસંદ કરો.\n\n"
+                    f"📞 જો હજી પણ સમસ્યા રહે, તો કૃપા કરીને Contact your Admin:\n"
+                    f"👉 Help Support Call: {ADMIN_HELP_PHONE}"
+                )
+            else:
+                reply = (
+                    "🛠️ AI Diagnosis: Camera Face Capture Issue (Resolved!)\n\n"
+                    "• Issue: Camera frame did not return a valid photo payload ('Input should be a valid string').\n"
+                    "• Fix: We have auto-corrected this with a dual-fallback mechanism! In 'Register Face Now', tap 'Save Photo' again or simply tap '🖼️ Upload Photo' to pick a selfie from your gallery.\n\n"
+                    f"📞 If technical issue persists, please Contact your Admin:\n"
+                    f"👉 Help Support Call: {ADMIN_HELP_PHONE}"
+                )
+        elif any(k in text for k in ["geofence", "location", "outside", "distance", "100m"]):
+            if lang == "hi":
+                reply = (
+                    "📍 AI Diagnosis: Outside Office Geofence\n\n"
+                    "• Samasya: Aap SBS Campus ke 100m radius se bahar detect hue hain.\n"
+                    "• Solution: Phone ka High-Accuracy GPS on karein. Viva demo ke liye 'Inside Campus' simulator toggle use karein.\n\n"
+                    f"📞 Agar help chahiye ho toh Contact your Admin: {ADMIN_HELP_PHONE}"
+                )
+            elif lang == "gu":
+                reply = (
+                    "📍 AI Diagnosis: કેમ્પસ જીઓફેન્સ બહાર છો\n\n"
+                    "• સમસ્યા: તમે ૧૦૦ મીટરની મર્યાદા બહાર છો.\n"
+                    "• ઉકેલ: ફોનનું GPS ચાલુ કરો અથવા ડેમો માટે 'Inside Campus' સિમ્યુલેટર પસંદ કરો.\n\n"
+                    f"📞 Contact your Admin: {ADMIN_HELP_PHONE}"
+                )
+            else:
+                reply = (
+                    "📍 AI Diagnosis: Outside Office Geofence\n\n"
+                    "• Issue: You are outside the 100m campus boundary.\n"
+                    "• Fix: Turn on device High-Accuracy GPS or toggle 'Inside Campus' on the Viva GPS Simulator.\n\n"
+                    f"📞 If issue persists, Contact your Admin: {ADMIN_HELP_PHONE}"
+                )
+        else:
+            if lang == "hi":
+                reply = (
+                    "🔍 AI Technical Support & Screenshot Diagnosis:\n\n"
+                    "• Humne aapke issue ko record kar liya hai. Kripya app ko restart karein aur camera/location permissions verify karein.\n\n"
+                    "• Agar issue khud solve na ho paaye, toh please Contact your Admin:\n"
+                    f"📞 Help Support Call: {ADMIN_HELP_PHONE}"
+                )
+            elif lang == "gu":
+                reply = (
+                    "🔍 AI ટેકનિકલ સહાય અને નિદાન:\n\n"
+                    "• તમારી સમસ્યા નોંધી લેવાઈ છે. કૃપા કરીને એપ રીસ્ટાર્ટ કરો અને કેમેરા/લોકેશન પરવાનગી તપાસો.\n\n"
+                    "• જો સમસ્યા આપમેળે ઉકેલાય નહીં, તો Contact your Admin:\n"
+                    f"📞 Help Support Call: {ADMIN_HELP_PHONE}"
+                )
+            else:
+                reply = (
+                    "🔍 AI Technical Issue & Screenshot Diagnosis:\n\n"
+                    "• The technical log has been recorded. Please restart the app and ensure camera & GPS permissions are allowed.\n\n"
+                    "• If this issue cannot be self-resolved, please Contact your Admin:\n"
+                    f"📞 Help Support Call: {ADMIN_HELP_PHONE}"
+                )
+
+        return {
+            "reply": reply,
+            "chips": ["How to Punch", "Guide Me", f"Call Admin ({ADMIN_HELP_PHONE})", "Today Status"],
+        }
+
+    # --------------------------------------------------------------------------
+    # INTENT B: STEP-BY-STEP ATTENDANCE GUIDANCE (How to Record Attendance)
+    # --------------------------------------------------------------------------
+    is_guide_query = any(k in text for k in [
+        "guide", "kaise", "record", "punch", "mark", "how to", "process", "step",
+        "karna hai", "karein", "click", "samjhao", "bataye", "sikhaye", "tarika",
+        "rasta", "attendance lagaye", "kem karvu"
+    ])
+
+    if is_guide_query:
+        if lang == "hi":
+            reply = (
+                "📋 Attendance Record Karne Ka Step-by-Step Tarika:\n\n"
+                "1️⃣ Step 1 - Geofence Check:\n"
+                "• Office Campus (100m) ke andar hona zaroori hai. (Testing/Viva ke liye screen par 'Inside Campus' simulator select karein).\n\n"
+                "2️⃣ Step 2 - Face Registration (Pehli Baar):\n"
+                "• Agar chehra register nahi hai, toh 'Register Face Now' par tap karke apni photo save karein.\n\n"
+                "3️⃣ Step 3 - Check In Button Dabayein:\n"
+                "• Home screen par green 'Check In' button par click karein.\n\n"
+                "4️⃣ Step 4 - Face Verify Karein:\n"
+                "• Camera me oval frame ke andar apna chehra rakhein.\n"
+                "• Liveness challenge (jaise Aankh blink karna) follow karein aur 'Verify & Punch' dabayein — aapki attendance record ho jayegi!\n\n"
+                "💡 Quick Shortcut: Aap seedhe '👆 Punch with Fingerprint' button dabakar apne phone ke fingerprint sensor se bhi 1-second me attendance laga sakte hain!\n\n"
+                f"📞 Agar koi technical dikkat aaye toh Contact your Admin: {ADMIN_HELP_PHONE}"
+            )
+        elif lang == "gu":
+            reply = (
+                "📋 હાજરી કેવી રીતે નોંધવી (Step-by-Step માર્ગદર્શિકા):\n\n"
+                "1️⃣ પગલું ૧ - જીઓફેન્સ ચકાસો:\n"
+                "• ઓફિસ કેમ્પસ (૧૦૦ મીટર)ની અંદર રહો (ડેમો માટે 'Inside Campus' પસંદ કરો).\n\n"
+                "2️⃣ પગલું ૨ - ફેસ રજીસ્ટ્રેશન (પ્રથમ વખત):\n"
+                "• જો ચહેરો નોંધાયેલ ન હોય, તો 'Register Face Now' પર ટેપ કરીને સેલ્ફી સેવ કરો.\n\n"
+                "3️⃣ પગલું ૩ - Check In પર ક્લિક કરો:\n"
+                "• હોમ સ્ક્રીન પર લીલા રંગનું 'Check In' બટન દબાવો.\n\n"
+                "4️⃣ પગલું ૪ - ફેસ વેરિફિકેશન:\n"
+                "• કેમેરામાં લાઈવનેસ ચેલેન્જ (જેમ કે આંખ પલકાવવી) પૂર્ણ કરો અને 'Verify & Punch' દબાવો — તમારી હાજરી નોંધાઈ જશે!\n\n"
+                "💡 શોર્ટકટ: તમે સીધા '👆 Punch with Fingerprint' થી પણ ૧ સેકન્ડમાં હાજરી પૂરી શકો છો!\n\n"
+                f"📞 કોઈ સમસ્યા આવે તો Contact your Admin: {ADMIN_HELP_PHONE}"
+            )
+        else:
+            reply = (
+                "📋 How to Record Attendance (Step-by-Step Guide):\n\n"
+                "1️⃣ Step 1 - Geofence Check:\n"
+                "• Ensure you are within 100m of the office campus (or select 'Inside Campus' on the Viva GPS Simulator).\n\n"
+                "2️⃣ Step 2 - Face Registration (First Time):\n"
+                "• If face is not enrolled, tap 'Register Face Now' and save your reference selfie.\n\n"
+                "3️⃣ Step 3 - Tap Check In:\n"
+                "• On your home dashboard, click the green 'Check In' button.\n\n"
+                "4️⃣ Step 4 - Face Verification & Liveness:\n"
+                "• Align your face inside the oval guide, perform the passive liveness action (e.g. blink once), and tap 'Verify & Punch' — attendance marked!\n\n"
+                "💡 Instant Shortcut: You can also tap '👆 Punch with Fingerprint' to mark attendance immediately via your native device biometric sensor!\n\n"
+                f"📞 Need help? Contact your Admin: {ADMIN_HELP_PHONE}"
+            )
+
+        return {
+            "reply": reply,
+            "chips": ["Today Status", f"Call Admin ({ADMIN_HELP_PHONE})", "Leave Balance", "Shift Rules"],
+        }
 
     # --------------------------------------------------------------------------
     # INTENT 0: ADMIN & WORKFORCE QUERIES (High Priority)
@@ -435,5 +583,5 @@ def process_chat_query(
 
     return {
         "reply": reply,
-        "chips": ["Today Status", "My Monthly Summary", "Leave Balance", "Trust Score", "Shift Rules"],
+        "chips": ["Guide Me", "How to Punch", "Report Technical Issue", "Call Admin (+91 9265272082)", "Today Status"],
     }

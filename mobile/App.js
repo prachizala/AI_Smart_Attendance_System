@@ -635,20 +635,61 @@ function CheckInDashboard({
     try {
       let base64Photo = overrideBase64;
       if (!base64Photo) {
-        if (!enrollCameraRef.current) return;
+        if (!enrollCameraRef.current) {
+          throw new Error("Camera is not ready yet. Please wait a moment or tap 'Upload Photo' from gallery.");
+        }
         const photo = await enrollCameraRef.current.takePictureAsync({
           base64: true,
-          quality: 0.8,
+          quality: 0.7,
+          skipProcessing: false,
         });
-        base64Photo = photo.base64;
+        base64Photo = photo?.base64;
+
+        // Fallback: If CameraView did not populate base64, read uri via FileReader
+        if ((!base64Photo || typeof base64Photo !== 'string') && photo?.uri) {
+          try {
+            const resp = await fetch(photo.uri);
+            const blob = await resp.blob();
+            base64Photo = await new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const res = reader.result;
+                if (typeof res === 'string') {
+                  const comma = res.indexOf(',');
+                  resolve(comma !== -1 ? res.substring(comma + 1) : res);
+                } else {
+                  resolve(null);
+                }
+              };
+              reader.onerror = () => resolve(null);
+              reader.readAsDataURL(blob);
+            });
+          } catch (blobErr) {
+            console.warn('FileReader conversion fallback failed:', blobErr);
+          }
+        }
       }
+
+      if (!base64Photo || typeof base64Photo !== 'string' || base64Photo.trim().length === 0) {
+        throw new Error("Could not capture a clear photo from camera. Please hold steady or tap 'Upload Photo' to select a selfie from your gallery.");
+      }
+
+      // Strip data URL prefix if present
+      if (base64Photo.includes('base64,')) {
+        base64Photo = base64Photo.split('base64,')[1];
+      }
+      base64Photo = base64Photo.trim();
 
       const cleanUrl = serverUrl.replace(/\/+$/, '');
       const response = await fetch(`${cleanUrl}/api/auth/register-face`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({
           user_id: user?.id,
+          employee_id: user?.employee_id,
           face_image_base64: base64Photo,
         }),
       });
@@ -702,12 +743,39 @@ function CheckInDashboard({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 0.7,
         base64: true,
       });
 
-      if (!result.canceled && result.assets && result.assets[0]?.base64) {
-        await handleEnrollFace(result.assets[0].base64);
+      if (!result.canceled && result.assets && result.assets[0]) {
+        let base64 = result.assets[0].base64;
+        if ((!base64 || typeof base64 !== 'string') && result.assets[0].uri) {
+          try {
+            const resp = await fetch(result.assets[0].uri);
+            const blob = await resp.blob();
+            base64 = await new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const res = reader.result;
+                if (typeof res === 'string') {
+                  const comma = res.indexOf(',');
+                  resolve(comma !== -1 ? res.substring(comma + 1) : res);
+                } else {
+                  resolve(null);
+                }
+              };
+              reader.onerror = () => resolve(null);
+              reader.readAsDataURL(blob);
+            });
+          } catch (e) {
+            console.warn('Gallery blob reading failed:', e);
+          }
+        }
+        if (base64) {
+          await handleEnrollFace(base64);
+        } else {
+          Alert.alert('Photo Error', 'Could not process the selected photo. Please try another selfie.');
+        }
       }
     } catch (e) {
       Alert.alert('Gallery Error', e.message || 'Failed to select image from gallery.');

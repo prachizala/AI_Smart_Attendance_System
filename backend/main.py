@@ -484,8 +484,11 @@ def get_all_users(
 
 
 class FaceRegisterPayload(BaseModel):
-    user_id: int
-    face_image_base64: str = Field(..., min_length=1, max_length=7000000, description="Base64 encoded reference face photo")
+    user_id: Optional[Union[int, str]] = None
+    employee_id: Optional[str] = None
+    face_image_base64: Optional[str] = None
+    image_base64: Optional[str] = None
+    photo: Optional[str] = None
 
 
 @app.post("/api/auth/register-face", tags=["Auth"])
@@ -494,21 +497,57 @@ def register_face(
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db)
 ):
-    """Registers or updates the 128-d face embedding for an employee profile."""
-    if authorization:
-        auth_user = resolve_user(None, authorization, db)
-        if auth_user.role.lower() != "admin" and auth_user.id != payload.user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Forbidden: Cannot register face biometrics on behalf of another user."
-            )
+    """Registers or updates the 128-d face embedding for an employee profile with ultra-resilient payload parsing."""
+    user = None
+    if payload.user_id is not None:
+        try:
+            uid = int(payload.user_id)
+            user = db.query(models.User).filter(models.User.id == uid).first()
+        except (ValueError, TypeError):
+            user = db.query(models.User).filter(models.User.employee_id == str(payload.user_id)).first()
+    if not user and payload.employee_id:
+        user = db.query(models.User).filter(models.User.employee_id == payload.employee_id).first()
+    if not user and authorization and authorization.startswith("Bearer "):
+        try:
+            token = authorization.split(" ")[1]
+            token_data = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            sub_id = int(token_data.get("sub"))
+            user = db.query(models.User).filter(models.User.id == sub_id).first()
+        except Exception:
+            pass
 
-    user = db.query(models.User).filter(models.User.id == payload.user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="Employee not found")
+        raise HTTPException(status_code=404, detail="Employee profile not found. Please log in again.")
+
+    if authorization:
+        try:
+            auth_user = resolve_user(None, authorization, db)
+            if auth_user.role.lower() != "admin" and auth_user.id != user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Forbidden: Cannot register face biometrics on behalf of another user."
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+    # Resolve image base64 robustly
+    img_b64 = payload.face_image_base64 or payload.image_base64 or payload.photo
+    if not img_b64 or not isinstance(img_b64, str) or len(img_b64.strip()) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No face photo received from camera. Please hold steady and tap 'Save Photo' or choose 'Upload Photo' from your gallery."
+        )
+
+    # Clean data URL prefix if sent
+    if "base64," in img_b64:
+        img_b64 = img_b64.split("base64,")[1]
+    img_b64 = img_b64.strip()
+
     try:
         from services.face_service import extract_face_embedding, serialize_embedding
-        embedding = extract_face_embedding(payload.face_image_base64)
+        embedding = extract_face_embedding(img_b64)
         user.face_embedding = serialize_embedding(embedding)
         db.commit()
         return {
@@ -1288,8 +1327,9 @@ def get_user_payroll(
 # ==========================================
 class ChatbotPayload(BaseModel):
     user_id: Optional[int] = None
-    message: str = Field(..., min_length=1, max_length=1000)
+    message: str = Field(..., min_length=1, max_length=2000)
     language: Optional[str] = "en"
+    image_base64: Optional[str] = None
 
 
 class ChatbotResponse(BaseModel):
@@ -1337,7 +1377,8 @@ def chatbot_query(
         db=db,
         user=user,
         message=payload.message,
-        language=payload.language or "en"
+        language=payload.language or "en",
+        image_base64=payload.image_base64
     )
     return ChatbotResponse(reply=result["reply"], chips=result.get("chips", []))
 

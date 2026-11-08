@@ -1,0 +1,86 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build Standalone Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install Mobile Dependencies
+        run: |
+          cd mobile
+          npm ci || npm install
+
+      - name: Run Expo Prebuild
+        run: |
+          cd mobile
+          npx expo prebuild --platform android --no-install
+        env:
+          EXPO_PUBLIC_API_URL: https://ai-smart-attendance-system-2m55.onrender.com
+
+      - name: Build Android APK with Gradle
+        run: |
+          cd mobile/android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Rename APK for Release
+        run: |
+          mkdir -p build_output
+          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk build_output/Smart_Attendance_v1.0.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Smart_Attendance_v1.0_APK
+          path: build_output/Smart_Attendance_v1.0.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        with:
+          tag_name: v1.0.0-apk
+          name: "Smart Attendance Mobile App v1.0.0"
+          body: |
+            ### 📱 Smart Attendance System - Android APK
+            
+            **Latest Features & Bug Fixes Included:**
+            - 👆 **Simulate Demo Fingerprint**: Allows instant biometric verification for project viva/demo even on unenrolled devices.
+            - ⚡ **Render Cloud Auto-Connect**: 45-second timeout with automatic fallback to live backend (`ai-smart-attendance-system-2m55.onrender.com`).
+            - 📸 **Camera & Biometric Registration Fix**: Flexible payload handling and smooth enrollment.
+            - 🤖 **AI Smart Assistant Chatbot**: Step-by-step attendance guide, screenshot error diagnostics, and direct call support (`+91 9265272082`).
+            - 🌐 **Multilingual Support**: English, Hindi, and Gujarati.
+            
+            **Download the APK file below and install on any Android device.**
+          files: build_output/Smart_Attendance_v1.0.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

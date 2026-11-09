@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Animated,
   Dimensions,
+  Image,
 } from 'react-native';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -335,8 +336,13 @@ function LoginScreen({ onLoginSuccess, serverUrl, setServerUrl }) {
           </View>
         </View>
 
-        {/* Clean Center Card */}
+        {/* Clean Center Card with Branded Poster */}
         <View style={styles.loginCard}>
+          <Image
+            source={require('./assets/poster.png')}
+            style={styles.loginPosterImage}
+            resizeMode="cover"
+          />
           <View style={styles.loginCardHeader}>
             <View style={styles.loginLogoCircle}>
               <ScanFace size={28} color={colors.primary} />
@@ -1408,6 +1414,15 @@ const executeFingerprintPunch = async (isSimulation = false) => {
         </View>
       )}
 
+      {/* Attendance Visual Brand Poster Banner */}
+      <View style={styles.dashboardPosterCard}>
+        <Image
+          source={require('./assets/poster.png')}
+          style={styles.dashboardPosterImage}
+          resizeMode="cover"
+        />
+      </View>
+
       {/* Hero Live Clock & Clean Status Card */}
       <View style={styles.heroClockCard}>
         <View style={styles.heroClockHeader}>
@@ -2301,6 +2316,31 @@ export default function App() {
 // ==============================================================================
 const createStyles = (colors, isDark) =>
   StyleSheet.create({
+    dashboardPosterCard: {
+      borderRadius: 18,
+      overflow: 'hidden',
+      marginBottom: 16,
+      elevation: 4,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.2,
+      shadowRadius: 8,
+      backgroundColor: '#0F172A',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)',
+    },
+    dashboardPosterImage: {
+      width: '100%',
+      height: 135,
+      borderRadius: 18,
+    },
+    loginPosterImage: {
+      width: '100%',
+      height: 130,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      marginBottom: 14,
+    },
     avatarCircle: {
       width: 44,
       height: 44,

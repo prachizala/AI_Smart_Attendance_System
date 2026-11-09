@@ -46,18 +46,18 @@ jobs:
         env:
           EXPO_PUBLIC_API_URL: https://ai-smart-attendance-system-2m55.onrender.com
 
-      - name: Build Android APK with Gradle
+      - name: Build Standalone Release APK with Gradle
         run: |
           cd mobile/android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleRelease --no-daemon
         env:
           EXPO_PUBLIC_API_URL: https://ai-smart-attendance-system-2m55.onrender.com
 
       - name: Rename APK for Release
         run: |
           mkdir -p build_output
-          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk build_output/Smart_Attendance_v1.0.apk
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk build_output/Smart_Attendance_v1.0.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4

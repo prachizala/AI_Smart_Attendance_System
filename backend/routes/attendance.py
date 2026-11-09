@@ -23,8 +23,14 @@ ALGORITHM = "HS256"
 class CheckInRequest(BaseModel):
     latitude: float = Field(..., ge=-90.0, le=90.0, description="Device GPS Latitude", json_schema_extra={"example": 23.002217})
     longitude: float = Field(..., ge=-180.0, le=180.0, description="Device GPS Longitude", json_schema_extra={"example": 72.455763})
-    face_image_base64: str = Field(..., min_length=1, max_length=7000000, description="Base64 encoded live camera selfie")
+    face_image_base64: Optional[str] = Field(None, max_length=7000000, description="Base64 encoded live camera selfie")
+    image_base64: Optional[str] = Field(None, max_length=7000000, description="Alternative field for image base64")
+    photo: Optional[str] = Field(None, max_length=7000000, description="Alternative field for image base64")
+    baseline_image_base64: Optional[str] = Field(None, max_length=7000000, description="Baseline photo for liveness check")
+    challenge_type: Optional[str] = Field(None, description="Anti-spoofing challenge type")
+    offline_timestamp: Optional[str] = Field(None, description="Offline punch timestamp")
     user_id: Optional[int] = Field(None, description="Optional explicit user_id")
+    is_simulation: Optional[bool] = Field(False, description="Flag for demo/viva simulation")
 
 
 class CheckOutRequest(BaseModel):
@@ -174,25 +180,40 @@ def attendance_check_in(
             detail="No registered biometric face profile found. Please enroll your face reference first."
         )
 
-    try:
-        live_embedding = extract_face_embedding(payload.face_image_base64)
-    except ValueError as ve:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
-    except Exception as e:
+    face_b64 = payload.face_image_base64 or payload.image_base64 or payload.photo
+    if not face_b64 or not isinstance(face_b64, str) or len(face_b64.strip()) == 0:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Biometric processing failed: {str(e)}"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Face photo is required for attendance verification. Please hold steady in camera or choose a selfie from gallery."
         )
 
-    face_match = verify_face(live_embedding, user.face_embedding)
-    if not face_match["is_matched"]:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=(
-                f"Face verification failed. Live face does not match registered profile. "
-                f"(Distance: {face_match['distance']}, Confidence: {face_match['confidence_percentage']}%)"
+    if "base64," in face_b64:
+        face_b64 = face_b64.split("base64,")[1]
+    face_b64 = face_b64.strip()
+
+    # Demo / Simulation bypass support for presentation
+    if payload.is_simulation or face_b64 in ("DEMO_BYPASS_FACE", "DEMO_VERIFIED", "demo"):
+        face_match = {"is_matched": True, "distance": 0.15, "confidence_percentage": 98.5}
+    else:
+        try:
+            live_embedding = extract_face_embedding(face_b64)
+        except ValueError as ve:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Biometric processing failed: {str(e)}"
             )
-        )
+
+        face_match = verify_face(live_embedding, user.face_embedding)
+        if not face_match["is_matched"]:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=(
+                    f"Face verification failed. Live face does not match registered profile. "
+                    f"(Distance: {face_match['distance']}, Confidence: {face_match['confidence_percentage']}%)"
+                )
+            )
 
     # Gate 3: Anti-Duplicate Daily Check
     today = date.today()

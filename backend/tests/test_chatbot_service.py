@@ -1,4 +1,4 @@
-import models
+﻿import models
 from database import SessionLocal
 from services.chatbot_service import calculate_punctuality_score, process_chat_query
 
@@ -12,7 +12,7 @@ def test_chatbot_service_basic():
                 employee_id="TEST01",
                 full_name="Test User",
                 email="test@example.com",
-                password_hash="mock",
+                hashed_password="mock",
                 role="employee"
             )
             db.add(user)

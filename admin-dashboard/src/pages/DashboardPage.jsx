@@ -1,0 +1,238 @@
+import React, { useState } from 'react';
+import { Users, UserCheck, Clock, UserX, CalendarOff, MapPin, CheckCircle2, XCircle, Download, Printer, QrCode } from 'lucide-react';
+import GeofenceMap from '../components/GeofenceMap';
+import PunctualityLeaderboard from '../components/PunctualityLeaderboard';
+import QRKioskModal from '../components/QRKioskModal';
+import { useLanguage } from '../context/LanguageContext';
+
+export default function DashboardPage({ stats, todayLogs, isLoading }) {
+  const { t } = useLanguage();
+
+  const mapPunches = (todayLogs || []).map((log, idx) => ({
+    id: log.id || `log-${idx}`,
+    name: log.employee_name || 'Employee',
+    employee_id: log.employee_id,
+    distance: log.distance_meters || 22,
+    status: log.status || 'present',
+    time: log.check_in ? new Date(log.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Today',
+    offsetX: 50 + (Math.cos(idx * 2.1) * Math.min(36, (log.distance_meters || 25) * 0.32)),
+    offsetY: 50 + (Math.sin(idx * 2.1) * Math.min(36, (log.distance_meters || 25) * 0.32)),
+  }));
+
+  const cards = [
+    {
+      title: t('totalEmployees'),
+      value: stats?.total_employees || 0,
+      icon: Users,
+      bg: 'bg-indigo-50/70 dark:bg-indigo-950/40',
+      border: 'border-indigo-100 dark:border-indigo-900/60',
+      iconColor: 'text-indigo-600 dark:text-indigo-400',
+    },
+    {
+      title: t('presentToday'),
+      value: stats?.present_today || 0,
+      icon: UserCheck,
+      bg: 'bg-emerald-50/70 dark:bg-emerald-950/40',
+      border: 'border-emerald-100 dark:border-emerald-900/60',
+      iconColor: 'text-emerald-600 dark:text-emerald-400',
+    },
+    {
+      title: t('lateArrivals'),
+      value: stats?.late_today || 0,
+      icon: Clock,
+      bg: 'bg-amber-50/70 dark:bg-amber-950/40',
+      border: 'border-amber-100 dark:border-amber-900/60',
+      iconColor: 'text-amber-600 dark:text-amber-400',
+    },
+    {
+      title: t('onApprovedLeave'),
+      value: stats?.on_leave_today || 0,
+      icon: CalendarOff,
+      bg: 'bg-purple-50/70 dark:bg-purple-950/40',
+      border: 'border-purple-100 dark:border-purple-900/60',
+      iconColor: 'text-purple-600 dark:text-purple-400',
+    },
+    {
+      title: t('absentUnreported'),
+      value: stats?.absent_today || 0,
+      icon: UserX,
+      bg: 'bg-rose-50/70 dark:bg-rose-950/40',
+      border: 'border-rose-100 dark:border-rose-900/60',
+      iconColor: 'text-rose-600 dark:text-rose-400',
+    },
+  ];
+
+  const handleExportCSV = () => {
+    window.location.href = '/api/reports/attendance/csv';
+  };
+
+  const handlePrintReport = () => {
+    window.print();
+  };
+
+  const [showQRKiosk, setShowQRKiosk] = useState(false);
+
+  return (
+    <div className="space-y-6 transition-colors duration-300">
+      {/* Metric Counters Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {cards.map((card, i) => {
+          const Icon = card.icon;
+          return (
+            <div
+              key={i}
+              className={`${card.bg} border ${card.border} rounded-3xl p-5 shadow-xs relative overflow-hidden`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  {card.title}
+                </span>
+                <div className={`p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 shadow-xs ${card.iconColor}`}>
+                  <Icon className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                  {card.value}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Live Geofence Map Visualizer */}
+      <GeofenceMap 
+        officeLat={23.002217}
+        officeLon={72.455763}
+        radiusMeters={100}
+        recentPunches={mapPunches}
+      />
+
+      {/* Workforce Punctuality & Trust Leaderboard */}
+      <PunctualityLeaderboard />
+
+      {/* Real-time Daily Attendance Table */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
+              {t('liveAttendanceFeed')}
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Live timestamps with verified 128-D OpenCV face embeddings and Haversine GPS distances.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportCSV}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+              title="Download Excel spreadsheet of today's attendance"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>{t('exportCsv')}</span>
+            </button>
+            <button
+              onClick={handlePrintReport}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition border border-slate-200 dark:border-slate-700 cursor-pointer"
+              title="Print daily attendance sheet"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>{t('printReport')}</span>
+            </button>
+            <button
+              onClick={() => setShowQRKiosk(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+              title="Launch Dynamic Anti-Screenshot Gate QR Kiosk"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              <span>{t('qrKiosk')}</span>
+            </button>
+            <span className="hidden md:inline-block text-xs bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 px-3 py-1 rounded-full border border-indigo-200 dark:border-indigo-800 font-mono font-medium">
+              Radius: 100m
+            </span>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+          <table className="w-full text-left text-sm text-slate-700 dark:text-slate-300">
+            <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 text-xs uppercase font-semibold border-b border-slate-200 dark:border-slate-800">
+              <tr>
+                <th className="py-3 px-4">{t('colEmployee')}</th>
+                <th className="py-3 px-4">Check-In</th>
+                <th className="py-3 px-4">Check-Out</th>
+                <th className="py-3 px-4">{t('colBiometricScore')}</th>
+                <th className="py-3 px-4">{t('colDistance')}</th>
+                <th className="py-3 px-4">{t('colStatus')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
+              {todayLogs && todayLogs.length > 0 ? (
+                todayLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/50 transition">
+                    <td className="py-3 px-4">
+                      <div className="font-semibold text-slate-900 dark:text-white">{log.employee_name || 'Employee'}</div>
+                      <div className="text-xs text-slate-400 dark:text-slate-500 font-mono">{log.employee_id}</div>
+                    </td>
+                    <td className="py-3 px-4 font-mono text-slate-700 dark:text-slate-300">
+                      {log.check_in ? new Date(log.check_in).toLocaleTimeString() : '--:--'}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-slate-700 dark:text-slate-300">
+                      {log.check_out ? new Date(log.check_out).toLocaleTimeString() : '--:--'}
+                    </td>
+                    <td className="py-3 px-4">
+                      {log.verification_method === 'fingerprint' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-xs font-semibold border border-emerald-200 dark:border-emerald-800">
+                          👆 Fingerprint
+                        </span>
+                      ) : log.face_verified ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500" /> {t('verified')}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-rose-700 dark:text-rose-400 text-xs font-medium">
+                          <XCircle className="w-4 h-4 text-rose-500" /> {t('flagged')}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      {log.location_verified ? (
+                        <span className="inline-flex items-center gap-1 text-indigo-700 dark:text-indigo-400 text-xs font-medium">
+                          <MapPin className="w-4 h-4 text-indigo-500" /> {t('insideCampus')} ({log.distance_meters}m)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-rose-700 dark:text-rose-400 text-xs font-medium">
+                          <MapPin className="w-4 h-4 text-rose-500" /> {t('outsideCampus')}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span
+                        className={`inline-block px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${
+                          log.status === 'present'
+                            ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                            : 'bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800'
+                        }`}
+                      >
+                        {log.status === 'present' ? t('statusPresent') : log.status === 'late' ? t('statusLate') : log.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-slate-400 dark:text-slate-500 text-sm">
+                    {t('noLogsToday')}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Dynamic Anti-Screenshot Gate QR Kiosk Modal */}
+      <QRKioskModal isOpen={showQRKiosk} onClose={() => setShowQRKiosk(false)} />
+    </div>
+  );
+}

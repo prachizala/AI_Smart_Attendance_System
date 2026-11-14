@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: smart-attendance-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - SECRET_KEY=demo_dev_secret_key_change_in_production_123456
+      - DATABASE_URL=sqlite:///./smart_attendance.db
+      - OFFICE_LAT=23.0225
+      - OFFICE_LNG=72.5714
+      - GEOFENCE_RADIUS_M=100
+      - SHIFT_START=09:30
+      - FACE_MATCH_THRESHOLD=0.65
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173
+    volumes:
+      - ./backend/data:/app/data
+      - attendance_data:/app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  attendance_data:

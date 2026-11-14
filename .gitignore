@@ -10,3 +10,12 @@ env/
 venv/
 .pytest_cache/
 .streamlit/
+
+# Tooling and agent configs
+.claude/
+.gemini/
+.cursor/
+.agent/
+CLAUDE.md
+AGENTS.md
+GEMINI.md

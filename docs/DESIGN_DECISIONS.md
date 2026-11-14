@@ -102,7 +102,7 @@ sequenceDiagram
     Auth-->>User: HTTP 200 {records}
 ```
 
-- Passwords use **bcrypt** hashing with auto-generated salt rounds.
+- Passwords use **bcrypt** hashing with randomized salt rounds.
 - Tokens include an expiration timestamp (`exp`). Expired tokens are rejected with HTTP 401 Unauthorized.
 - Tokens are stored in mobile device hardware keystores (`expo-secure-store`) rather than insecure local text storage.
 

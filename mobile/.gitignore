@@ -1,6 +1,10 @@
 .expo/
 node_modules/
 .env
+.env.*
+!.env.example
+*.db
+*.pyc
 npm-debug.*
 *.jks
 *.p8
@@ -11,4 +15,3 @@ npm-debug.*
 web-build/
 android/
 ios/
-

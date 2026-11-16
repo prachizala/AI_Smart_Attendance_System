@@ -16,6 +16,7 @@ env/
 __pycache__/
 */__pycache__/
 *.py[cod]
+*.pyc
 *$py.class
 .pytest_cache/
 */.pytest_cache/

@@ -1,0 +1,24 @@
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Python cache & bytecode
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+
+# Python virtual environments
+venv/
+.venv/
+env/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Test caches
+.pytest_cache/
+.ruff_cache/
